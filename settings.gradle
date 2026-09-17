@@ -6,3 +6,4 @@ dependencyResolutionManagement {
     repositories { google(); mavenCentral() }
 }
 rootProject.name = "Delhi6Admin"
+include ':app'
