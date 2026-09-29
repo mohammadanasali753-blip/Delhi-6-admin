@@ -6,6 +6,8 @@
     <application
         android:allowBackup="true"
         android:label="Delhi-6 Admin"
+        android:icon="@drawable/delhi6_app_icon"
+        android:roundIcon="@drawable/delhi6_app_icon"
         android:theme="@style/AppTheme"
         android:usesCleartextTraffic="false">
 
