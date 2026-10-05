@@ -20,6 +20,14 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
+      - name: Bundle Three.js engine and loaders
+        run: |
+          mkdir -p video-maker/src/main/assets
+          curl -L --fail https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js -o video-maker/src/main/assets/three.min.js
+          curl -L --fail https://cdn.jsdelivr.net/npm/three@0.149.0/examples/js/controls/OrbitControls.js -o video-maker/src/main/assets/OrbitControls.js
+          curl -L --fail https://cdn.jsdelivr.net/npm/three@0.149.0/examples/js/loaders/GLTFLoader.js -o video-maker/src/main/assets/GLTFLoader.js
+          curl -L --fail https://cdn.jsdelivr.net/npm/three@0.149.0/examples/js/loaders/FBXLoader.js -o video-maker/src/main/assets/FBXLoader.js
+          curl -L --fail https://cdn.jsdelivr.net/npm/three@0.149.0/examples/js/loaders/OBJLoader.js -o video-maker/src/main/assets/OBJLoader.js
       - name: Build APK
         run: gradle :video-maker:assembleDebug
       - uses: actions/upload-artifact@v4
