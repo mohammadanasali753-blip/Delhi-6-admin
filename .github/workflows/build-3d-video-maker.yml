@@ -29,3 +29,4 @@ jobs:
           if-no-files-found: error
 
 # rebuild after mobile editor upgrade
+# build after editor fixes
