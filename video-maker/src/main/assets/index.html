@@ -16,18 +16,12 @@
 <div class="sec"><h3>Face</h3><label class="pick" style="display:block;text-align:center">🖼️ Face Photo<input id="face" type="file" accept="image/*"></label><button id="applyFace" style="width:100%;margin-top:5px">Apply Face Texture</button><small>Uploaded photo selected model की material पर लगती है.</small></div>
 <div class="sec"><h3>🔎 Search 3D Objects</h3><div class="row2"><input id="assetSearch" placeholder="car, bike, house, phone..." style="grid-column:1/-1"><button id="assetSearchBtn" class="primary">Search</button></div><div id="assetResults" class="list"></div><small>Search results internet catalog से आएंगे. Downloadable model को GLB/GLTF में download करके 3D Object से import कर सकते हो. हर model का license/permission अलग हो सकता है.</small></div><div class="sec"><h3>Object Library</h3><div id="libraryBtns" class="row2"></div></div>
 <div class="sec"><h3>Animation</h3><button id="key">➕ Keyframe</button><button id="clearKeys">Clear Keys</button><div id="keys"><small>No keyframes</small></div></div>
-<div class="sec"><h3>Camera</h3><button id="reset">Reset Camera</button><button id="focus">Focus Selected</button></div></aside></div><div id="toast"></div><script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"}}</script>
-<script type="module">
-import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
-import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
+<div class="sec"><h3>Camera</h3><button id="reset">Reset Camera</button><button id="focus">Focus Selected</button></div></aside></div><div id="toast"></div><script src="three.min.js"></script><script src="OrbitControls.js"></script><script src="GLTFLoader.js"></script><script src="FBXLoader.js"></script><script src="OBJLoader.js"></script><script>
 const view=document.getElementById('view'),status=document.getElementById('status'),sel=document.getElementById('sceneList'),bones=document.getElementById('bones');
 const scene=new THREE.Scene();scene.background=new THREE.Color(0x080b12);
 const camera=new THREE.PerspectiveCamera(55,1,.05,500);camera.position.set(4,3,7);
 const renderer=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});renderer.setPixelRatio(Math.min(devicePixelRatio,2));view.appendChild(renderer.domElement);
-const controls=new OrbitControls(camera,renderer.domElement);controls.enableDamping=true;
+const controls=new THREE.OrbitControls(camera,renderer.domElement);controls.enableDamping=true;
 scene.add(new THREE.HemisphereLight(0xffffff,0x334455,2));const dl=new THREE.DirectionalLight(0xffffff,3);dl.position.set(4,8,5);scene.add(dl);
 const grid=new THREE.GridHelper(20,20,0x39445c,0x202838);scene.add(grid);
 let selected=null,character=null,faceURL=null,videoURL=null,keys=[];
@@ -42,7 +36,7 @@ document.getElementById('add').onclick=()=>{let m=new THREE.Mesh(new THREE.BoxGe
 document.getElementById('dup').onclick=()=>{if(!selected)return;let d=selected.clone();d.position.x+=.7;d.userData={...selected.userData,name:(selected.userData.name||'Object')+' Copy',editable:true};scene.add(d);pick(d);refresh()};
 document.getElementById('del').onclick=()=>{if(!selected)return;scene.remove(selected);selected=null;refresh();msg('Deleted')};
 document.getElementById('reset').onclick=()=>{camera.position.set(4,3,7);controls.target.set(0,1,0);controls.update()};
-function importModel(f,isCharacter=false){if(!f)return;let url=URL.createObjectURL(f),ext=f.name.split('.').pop().toLowerCase();msg('Loading '+f.name+'…');const done=o=>{o.userData={editable:true,name:f.name,type:isCharacter?'character':'object'};scene.add(o);if(isCharacter)character=o;pick(o);refresh();msg((isCharacter?'Character ':'Object ')+ 'imported')};if(ext==='obj')new OBJLoader().load(url,done,undefined,()=>msg('OBJ load failed'));else if(ext==='fbx')new FBXLoader().load(url,done,undefined,()=>msg('FBX load failed'));else new GLTFLoader().load(url,g=>done(g.scene),undefined,()=>msg('GLB/GLTF load failed'))}
+function importModel(f,isCharacter=false){if(!f)return;let url=URL.createObjectURL(f),ext=f.name.split('.').pop().toLowerCase();msg('Loading '+f.name+'…');const done=o=>{o.userData={editable:true,name:f.name,type:isCharacter?'character':'object'};scene.add(o);if(isCharacter)character=o;pick(o);refresh();msg((isCharacter?'Character ':'Object ')+ 'imported')};if(ext==='obj')new THREE.OBJLoader().load(url,done,undefined,()=>msg('OBJ load failed'));else if(ext==='fbx')new THREE.FBXLoader().load(url,done,undefined,()=>msg('FBX load failed'));else new THREE.GLTFLoader().load(url,g=>done(g.scene),undefined,()=>msg('GLB/GLTF load failed'))}
 document.getElementById('character').onchange=e=>Array.from(e.target.files||[]).forEach(f=>importModel(f,true));
 document.getElementById('objectsFile').onchange=e=>Array.from(e.target.files||[]).forEach(f=>importModel(f,false));
 document.getElementById('attach').onclick=()=>{if(!selected||!character)return msg('Select an object and character first');let b=character.getObjectByProperty('uuid',bones.value);if(!b||!b.isBone)return msg('Select a hand/wrist bone');b.attach(selected);selected.userData.attachedTo=b.name;msg('Attached to '+b.name);};
