@@ -27,3 +27,5 @@ jobs:
           name: 3D-Video-Maker-APK
           path: video-maker/build/outputs/apk/debug/video-maker-debug.apk
           if-no-files-found: error
+
+# rebuild after mobile editor upgrade
