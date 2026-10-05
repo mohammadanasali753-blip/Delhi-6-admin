@@ -2,45 +2,21 @@
 <html><head><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <title>3D Video Maker Studio</title>
 <style>
-*{box-sizing:border-box}body{margin:0;background:#080b12;color:#eee;font-family:Arial,sans-serif;overflow:hidden}
-#top{height:52px;background:#121725;display:flex;align-items:center;gap:7px;padding:7px;border-bottom:1px solid #272d3d}
-button,label{background:#20283a;color:#fff;border:1px solid #39445c;border-radius:7px;padding:8px 10px;font-size:12px;cursor:pointer}
-button:active,label:active{background:#39415a}input[type=file]{display:none}
-#layout{height:calc(100vh - 52px);display:grid;grid-template-columns:1fr 250px}
-#view{position:relative;min-width:0}canvas{display:block;width:100%;height:100%}
-#panel{background:#101522;border-left:1px solid #272d3d;padding:10px;overflow:auto}
-h3{margin:5px 0 9px;font-size:15px}.sec{border-bottom:1px solid #252c3d;padding:8px 0}
-.row{display:flex;gap:6px;flex-wrap:wrap}.row>*{flex:1;min-width:70px}
-select,input[type=number],input[type=text]{width:100%;background:#171e2d;color:#fff;border:1px solid #374158;border-radius:6px;padding:7px}
-#status{position:absolute;left:10px;bottom:10px;background:#000b;padding:7px 9px;border-radius:7px;font-size:11px}
-#timeline{position:absolute;left:10px;right:10px;bottom:10px;height:54px;background:#111827e8;border:1px solid #30394d;border-radius:8px;padding:7px;display:none}
-small{color:#9ba6bd}.danger{border-color:#9b3c55}
+*{box-sizing:border-box}body{margin:0;background:#080b12;color:#f4f6fb;font-family:Arial,sans-serif;overflow:hidden}button,.pick{background:#20283a;color:#fff;border:1px solid #3b4861;border-radius:9px;padding:10px 11px;font-size:12px;min-height:40px}button:active,.pick:active{background:#4b3f72}input[type=file]{display:none}#top{height:58px;background:#111725;display:flex;gap:6px;padding:7px;overflow-x:auto;border-bottom:1px solid #293247;white-space:nowrap}#top>*{flex:0 0 auto}.primary{background:#6d3fd4;border-color:#9168ee}#layout{height:calc(100vh - 58px);display:grid;grid-template-columns:minmax(0,1fr) 285px}#view{position:relative;min-width:0;touch-action:none}canvas{display:block;width:100%;height:100%}#panel{background:#101522;border-left:1px solid #293247;padding:9px;overflow:auto}.sec{padding:9px 0;border-bottom:1px solid #273044}h3{font-size:14px;margin:0 0 8px}.row{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin:5px 0}.row2{display:grid;grid-template-columns:1fr 1fr;gap:5px}input[type=number],select{width:100%;background:#171e2d;color:#fff;border:1px solid #39445c;border-radius:7px;padding:8px;min-height:38px}.list{max-height:130px;overflow:auto}.list button{width:100%;text-align:left;margin:2px 0}small{color:#9ba6bd;line-height:1.35}#status{position:absolute;left:9px;bottom:9px;background:#05070ce8;padding:8px 10px;border-radius:8px;font-size:11px;max-width:75%}#toast{position:fixed;top:68px;left:50%;transform:translateX(-50%);background:#181f2e;padding:9px 13px;border-radius:10px;display:none;z-index:9}@media(max-width:700px){#layout{grid-template-columns:1fr}#panel{position:absolute;right:0;top:0;bottom:0;width:270px;z-index:5;transform:translateX(100%);transition:.2s}#panel.open{transform:translateX(0)}#menu{display:block!important}}#menu{display:none}
 </style>
-</head><body>
-<div id="top">
-<label>📦 3D Model<input id="model" type="file" accept=".glb,.gltf,.fbx,.obj"></label>
-<label>🙂 Face<input id="face" type="file" accept="image/*"></label>
-<label>🎮 Gameplay<input id="video" type="file" accept="video/*"></label>
-<button id="add">＋ Object</button><button id="dup">Duplicate</button><button id="del">Delete</button>
-<button id="save">Save</button><label>Load<input id="load" type="file" accept=".json,application/json"></label>
-<button id="rec">⏺ Record</button>
-</div>
-<div id="layout"><div id="view"><div id="status">Ready — import a GLB/GLTF model</div><div id="timeline"></div></div>
-<aside id="panel">
-<div class="sec"><h3>Scene</h3><select id="objects" size="7" style="height:145px"></select></div>
-<div class="sec"><h3>Transform</h3>
-<div class="row"><input id="px" type="number" step=".1" placeholder="X"><input id="py" type="number" step=".1" placeholder="Y"><input id="pz" type="number" step=".1" placeholder="Z"></div>
-<div class="row"><input id="rx" type="number" step="1" placeholder="RX"><input id="ry" type="number" step="1" placeholder="RY"><input id="rz" type="number" step="1" placeholder="RZ"></div>
-<div class="row"><input id="sx" type="number" step=".1" placeholder="SX"><input id="sy" type="number" step=".1" placeholder="SY"><input id="sz" type="number" step=".1" placeholder="SZ"></div>
-</div>
-<div class="sec"><h3>Character / Hand</h3><select id="bones"><option>No character selected</option></select>
-<div class="row"><button id="attach">Attach selected object</button><button id="detach">Detach</button></div>
-<small>Right/Left hand, wrist, palm and common Mixamo bone names are detected.</small></div>
-<div class="sec"><h3>Face</h3><button id="applyFace">Apply uploaded face image</button><small>Applies the uploaded image to the selected mesh material where supported.</small></div>
-<div class="sec"><h3>Timeline</h3><button id="key">Add keyframe</button><button id="clearKeys">Clear keys</button><div id="keys"><small>No keyframes</small></div></div>
-<div class="sec"><h3>Camera</h3><button id="reset">Reset camera</button></div>
-</aside></div>
-<script src="https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.min.js"></script>
+</head><body><div id="top">
+<label class="pick primary">📁 Photo / Video<input id="media" type="file" accept="image/*,video/*" multiple></label>
+<label class="pick">🧍 Character<input id="character" type="file" accept=".glb,.gltf,.fbx,.obj" multiple></label>
+<label class="pick">🧩 3D Object<input id="objectsFile" type="file" accept=".glb,.gltf,.fbx,.obj" multiple></label>
+<button id="library">🧰 Objects</button><button id="add">＋ Cube</button><button id="menu">☰ Edit</button><button id="save">💾 Save</button><label class="pick">📂 Load<input id="load" type="file" accept=".json,application/json"></label><button id="rec" class="primary">⏺ Record</button></div>
+<div id="layout"><main id="view"><div id="status">Ready — Character, Photo/Video और 3D Object upload कर सकते हो</div></main><aside id="panel">
+<div class="sec"><h3>Scene Objects</h3><div id="sceneList" class="list"></div></div>
+<div class="sec"><h3>Transform</h3><div class="row"><input id="px" type="number" step=".1" placeholder="X"><input id="py" type="number" step=".1" placeholder="Y"><input id="pz" type="number" step=".1" placeholder="Z"></div><div class="row"><input id="rx" type="number" step="5" placeholder="RX"><input id="ry" type="number" step="5" placeholder="RY"><input id="rz" type="number" step="5" placeholder="RZ"></div><div class="row"><input id="sx" type="number" step=".1" placeholder="SX"><input id="sy" type="number" step=".1" placeholder="SY"><input id="sz" type="number" step=".1" placeholder="SZ"></div><div class="row2"><button id="dup">Duplicate</button><button id="del">Delete</button></div></div>
+<div class="sec"><h3>Character Hand / Attach</h3><select id="bones"><option>Upload character first</option></select><div class="row2"><button id="attach">🤝 Attach</button><button id="detach">↩ Detach</button></div><small>Character upload करो → hand/wrist/palm bone चुनो → scene में object select करके Attach दबाओ.</small></div>
+<div class="sec"><h3>Face</h3><label class="pick" style="display:block;text-align:center">🖼️ Face Photo<input id="face" type="file" accept="image/*"></label><button id="applyFace" style="width:100%;margin-top:5px">Apply Face Texture</button><small>Uploaded photo selected model की material पर लगती है.</small></div>
+<div class="sec"><h3>Object Library</h3><div id="libraryBtns" class="row2"></div></div>
+<div class="sec"><h3>Animation</h3><button id="key">➕ Keyframe</button><button id="clearKeys">Clear Keys</button><div id="keys"><small>No keyframes</small></div></div>
+<div class="sec"><h3>Camera</h3><button id="reset">Reset Camera</button><button id="focus">Focus Selected</button></div></aside></div><div id="toast"></div><script src="https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.169.0/examples/js/controls/OrbitControls.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.169.0/examples/js/loaders/GLTFLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.169.0/examples/js/loaders/FBXLoader.js"></script>
