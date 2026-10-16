@@ -1,0 +1,35 @@
+name: Build Indian Railway APK
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "railway-game/**"
+      - ".github/workflows/build-indian-railway-apk.yml"
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+    container:
+      image: barichello/godot-ci:4.3.0
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check Godot and export templates
+        run: |
+          godot --version
+          mkdir -p railway-game/build
+          godot --headless --editor --path railway-game --quit
+
+      - name: Export Android APK
+        run: |
+          godot --headless --path railway-game --export-debug "Android" railway-game/build/IR-Open-World.apk
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Indian-Railway-Open-World-APK
+          path: railway-game/build/IR-Open-World.apk
+          if-no-files-found: error
+          retention-days: 14
