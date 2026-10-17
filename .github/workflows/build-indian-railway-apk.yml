@@ -46,6 +46,8 @@ jobs:
           wget -q https://github.com/godotengine/godot/releases/download/4.3-stable/Godot_v4.3-stable_export_templates.tpz -O /tmp/templates.tpz
           unzip -q /tmp/templates.tpz -d /tmp/godot-templates
           cp -a /tmp/godot-templates/templates/. "$HOME/.local/share/godot/export_templates/4.3.stable/"
+          test -s "$HOME/.local/share/godot/export_templates/4.3.stable/android_debug.apk"
+          test -s "$HOME/.local/share/godot/export_templates/4.3.stable/android_release.apk"
           godot --version
 
       - name: Configure Godot Android export paths
@@ -65,21 +67,19 @@ jobs:
           godot --headless --editor --path railway-game --quit
           echo "---- Godot Android SDK settings ----"
           cat "$HOME/.config/godot/editor_settings-4.tres"
-          echo "---- Export preset ----"
-          cat railway-game/export_presets.cfg
+          echo "---- Export preset keystore settings ----"
+          grep -E '^(keystore/debug|keystore/debug_user|keystore/debug_password|package/signed)=' railway-game/export_presets.cfg
 
       - name: Create Android debug keystore
         run: |
-          keytool -genkeypair -v -keystore "$GITHUB_WORKSPACE/debug.keystore" -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+          keytool -genkeypair -v -keystore "$GITHUB_WORKSPACE/railway-game/debug.keystore" -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+          test -s railway-game/debug.keystore
 
       - name: Export Android APK
-        env:
-          GODOT_ANDROID_KEYSTORE_DEBUG_PATH: ${{ github.workspace }}/debug.keystore
-          GODOT_ANDROID_KEYSTORE_DEBUG_USER: androiddebugkey
-          GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD: android
         run: |
-          godot --headless --verbose --path railway-game --export-debug "Android" railway-game/build/IR-Open-World.apk
+          godot --headless --verbose --path railway-game --export-debug "Android" build/IR-Open-World.apk
           test -s railway-game/build/IR-Open-World.apk
+          ls -lh railway-game/build/IR-Open-World.apk
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
