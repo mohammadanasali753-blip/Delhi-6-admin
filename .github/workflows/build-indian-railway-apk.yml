@@ -57,9 +57,18 @@ jobs:
           mkdir -p railway-game/build
           godot --headless --editor --path railway-game --quit
 
-      - name: Export Android APK
+      - name: Create Android debug keystore
         run: |
-          godot --headless --path railway-game --export-debug "Android" railway-game/build/IR-Open-World.apk
+          mkdir -p "$HOME/.android"
+          keytool -genkeypair -v -keystore "$HOME/.android/debug.keystore" -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+
+      - name: Export Android APK
+        env:
+          GODOT_ANDROID_KEYSTORE_DEBUG_PATH: ${{ env.HOME }}/.android/debug.keystore
+          GODOT_ANDROID_KEYSTORE_DEBUG_USER: androiddebugkey
+          GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD: android
+        run: |
+          godot --headless --verbose --path railway-game --export-debug "Android" railway-game/build/IR-Open-World.apk
           test -s railway-game/build/IR-Open-World.apk
 
       - name: Upload APK artifact
