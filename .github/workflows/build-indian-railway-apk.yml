@@ -27,8 +27,15 @@ jobs:
           echo "ANDROID_SDK_ROOT=$SDK_ROOT" >> "$GITHUB_ENV"
           SDKMANAGER="$(find "$SDK_ROOT/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
           test -n "$SDKMANAGER"
-          yes | "$SDKMANAGER" --licenses || true
-          "$SDKMANAGER" "platform-tools" "platforms;android-34" "build-tools;34.0.0" "cmdline-tools;latest" "cmake;3.10.2.4988404" "ndk;23.2.8568313"
+          yes | "$SDKMANAGER" --sdk_root="$SDK_ROOT" --licenses || true
+          "$SDKMANAGER" --sdk_root="$SDK_ROOT" "platform-tools" "platforms;android-34" "build-tools;34.0.0" "cmdline-tools;latest" "cmake;3.10.2.4988404" "ndk;23.2.8568313"
+          test -x "$SDK_ROOT/build-tools/34.0.0/apksigner"
+          test -f "$SDK_ROOT/platforms/android-34/android.jar"
+          test -x "$SDK_ROOT/platform-tools/adb"
+          test -d "$SDK_ROOT/ndk/23.2.8568313"
+          test -d "$SDK_ROOT/cmake/3.10.2.4988404"
+          echo "Verified Android SDK components under $SDK_ROOT"
+          ls -l "$SDK_ROOT/build-tools/34.0.0/apksigner" "$SDK_ROOT/platforms/android-34/android.jar" "$SDK_ROOT/platform-tools/adb"
 
       - name: Download Godot 4.3 and Android export templates
         run: |
@@ -56,6 +63,10 @@ jobs:
         run: |
           mkdir -p railway-game/build
           godot --headless --editor --path railway-game --quit
+          echo "---- Godot Android SDK settings ----"
+          cat "$HOME/.config/godot/editor_settings-4.tres"
+          echo "---- Export preset ----"
+          cat railway-game/export_presets.cfg
 
       - name: Create Android debug keystore
         run: |
