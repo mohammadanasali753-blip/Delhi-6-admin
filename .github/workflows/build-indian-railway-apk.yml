@@ -74,6 +74,9 @@ jobs:
         run: |
           keytool -genkeypair -v -keystore "$GITHUB_WORKSPACE/railway-game/debug.keystore" -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
           test -s railway-game/debug.keystore
+          # Use an absolute path so Godot's export validator can resolve the keystore.
+          sed -i "s|^keystore/debug=.*|keystore/debug=\\"$GITHUB_WORKSPACE/railway-game/debug.keystore\\"|" railway-game/export_presets.cfg
+          grep '^keystore/debug=' railway-game/export_presets.cfg
 
       - name: Export Android APK
         run: |
