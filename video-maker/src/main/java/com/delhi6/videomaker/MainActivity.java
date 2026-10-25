@@ -6,8 +6,11 @@ import android.webkit.*;
 import android.view.*;
 import android.net.Uri;
 import android.content.Intent;
+import android.content.ActivityNotFoundException;
+import android.content.ClipData;
 
 public class MainActivity extends Activity {
+    private static final int FILE_CHOOSER_REQUEST = 42;
     private WebView web;
     private ValueCallback<Uri[]> fileCallback;
 
@@ -15,6 +18,7 @@ public class MainActivity extends Activity {
         super.onCreate(b);
         web = new WebView(this);
         web.setBackgroundColor(0xff090b12);
+        web.setLayerType(View.LAYER_TYPE_HARDWARE, null);
         WebSettings s = web.getSettings();
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);
@@ -25,11 +29,32 @@ public class MainActivity extends Activity {
         s.setMediaPlaybackRequiresUserGesture(false);
         web.setWebChromeClient(new WebChromeClient() {
             @Override public boolean onShowFileChooser(WebView v, ValueCallback<Uri[]> cb, FileChooserParams p) {
-                if (fileCallback != null) fileCallback.onReceiveValue(null);
+                if (fileCallback != null) {
+                    fileCallback.onReceiveValue(null);
+                }
                 fileCallback = cb;
-                try { startActivityForResult(p.createIntent(), 42); }
-                catch (Exception e) { fileCallback = null; return false; }
-                return true;
+                try {
+                    Intent intent = p.createIntent();
+                    startActivityForResult(intent, FILE_CHOOSER_REQUEST);
+                    return true;
+                } catch (ActivityNotFoundException | IllegalArgumentException e) {
+                    try {
+                        Intent fallback = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+                        fallback.addCategory(Intent.CATEGORY_OPENABLE);
+                        fallback.setType("*/*");
+                        fallback.putExtra(Intent.EXTRA_MIME_TYPES, new String[] {
+                            "video/*", "image/*", "application/octet-stream",
+                            "model/gltf-binary", "model/gltf+json", "application/json"
+                        });
+                        fallback.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, p.getMode() == FileChooserParams.MODE_OPEN_MULTIPLE);
+                        startActivityForResult(fallback, FILE_CHOOSER_REQUEST);
+                        return true;
+                    } catch (Exception fallbackError) {
+                        fileCallback.onReceiveValue(null);
+                        fileCallback = null;
+                        return false;
+                    }
+                }
             }
         });
         web.setWebViewClient(new WebViewClient());
@@ -39,14 +64,41 @@ public class MainActivity extends Activity {
 
     @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == 42 && fileCallback != null) {
-            Uri[] r = resultCode == RESULT_OK && data != null ? WebChromeClient.FileChooserParams.parseResult(resultCode, data) : null;
-            fileCallback.onReceiveValue(r);
-            fileCallback = null;
+        if (requestCode != FILE_CHOOSER_REQUEST || fileCallback == null) return;
+        Uri[] result = null;
+        if (resultCode == RESULT_OK && data != null) {
+            try {
+                result = WebChromeClient.FileChooserParams.parseResult(resultCode, data);
+            } catch (Exception ignored) { }
+            if ((result == null || result.length == 0) && data.getClipData() != null) {
+                ClipData clip = data.getClipData();
+                result = new Uri[clip.getItemCount()];
+                for (int i = 0; i < clip.getItemCount(); i++) {
+                    result[i] = clip.getItemAt(i).getUri();
+                }
+            }
+            if ((result == null || result.length == 0) && data.getData() != null) {
+                result = new Uri[] { data.getData() };
+            }
         }
+        fileCallback.onReceiveValue(result);
+        fileCallback = null;
     }
 
     @Override public void onBackPressed() {
-        if (web.canGoBack()) web.goBack(); else super.onBackPressed();
+        if (web != null && web.canGoBack()) web.goBack();
+        else super.onBackPressed();
+    }
+
+    @Override protected void onDestroy() {
+        if (fileCallback != null) {
+            fileCallback.onReceiveValue(null);
+            fileCallback = null;
+        }
+        if (web != null) {
+            web.destroy();
+            web = null;
+        }
+        super.onDestroy();
     }
 }
