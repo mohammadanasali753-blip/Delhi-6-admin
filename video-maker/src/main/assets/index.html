@@ -300,14 +300,18 @@ document.getElementById('objectsFile').onchange=e=>Array.from(e.target.files||[]
 
 let manualBoneMode=false,manualBones=[],manualBoneLines=[],manualBoneParent=null,manualBonePoints=[],manualBoneVisualsVisible=false;
 function updateManualBoneStatus(t){document.getElementById('manualBoneStatus').textContent=t}
-function clearManualBoneVisuals(){manualBoneLines.forEach(x=>{scene.remove(x);x.geometry.dispose();x.material.dispose()});manualBoneLines=[]}
+function clearManualBoneVisuals(){manualBoneLines.forEach(x=>{scene.remove(x);x.geometry.dispose();if(Array.isArray(x.material))x.material.forEach(m=>m.dispose());else x.material.dispose()});manualBoneLines=[]}
 function redrawManualBoneLines(){
  clearManualBoneVisuals();
  for(let i=1;i<manualBones.length;i++){
   const a=manualBones[i-1].getWorldPosition(new THREE.Vector3()),b=manualBones[i].getWorldPosition(new THREE.Vector3());
-  const geo=new THREE.BufferGeometry().setFromPoints([a,b]);
-  const line=new THREE.Line(geo,new THREE.LineBasicMaterial({color:0x22d3ee,depthTest:false}));
-  line.renderOrder=1001;line.visible=manualBoneVisualsVisible;scene.add(line);manualBoneLines.push(line);
+  const dir=new THREE.Vector3().subVectors(b,a),len=dir.length();if(len<0.001)continue;
+  // Thick tapered bone-shaped segment between joints, not a thin line
+  const geo=new THREE.CylinderGeometry(0.026,0.042,len,10,1);
+  const mat=new THREE.MeshBasicMaterial({color:0xe7f1ff,depthTest:false});
+  const boneMesh=new THREE.Mesh(geo,mat);boneMesh.position.copy(a).add(b).multiplyScalar(0.5);
+  boneMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),dir.normalize());
+  boneMesh.renderOrder=1001;boneMesh.visible=manualBoneVisualsVisible;boneMesh.userData.manualBoneVisual=true;scene.add(boneMesh);manualBoneLines.push(boneMesh);
  }
 }
 function addManualBoneAt(point){
@@ -316,7 +320,7 @@ function addManualBoneAt(point){
  const b=new THREE.Bone();b.name='ManualBone_'+(manualBones.length+1);b.position.copy(local);
  if(manualBoneParent)manualBoneParent.add(b);else character.add(b);
  manualBones.push(b);manualBoneParent=b;
- const dot=new THREE.Mesh(new THREE.SphereGeometry(.055,10,8),new THREE.MeshBasicMaterial({color:0x22d3ee,depthTest:false}));
+ const dot=new THREE.Mesh(new THREE.SphereGeometry(.045,12,10),new THREE.MeshBasicMaterial({color:0xe7f1ff,depthTest:false}));
  dot.position.copy(point);dot.renderOrder=1002;dot.userData.manualBoneMarker=true;dot.visible=manualBoneVisualsVisible;scene.add(dot);manualBonePoints.push(dot);
  redrawManualBoneLines();loadBones(character);
  updateManualBoneStatus('Bone '+manualBones.length+' add ho gayi. Agle joint par click karo; chain banegi. Finish chain dabakar mode band karo.');
