@@ -46,6 +46,14 @@
 </div><div class="sec"><h3>Character Hand / Attach</h3><select id="bones"><option>Upload character first</option></select><div class="row2"><button id="attach">🤝 Attach</button><button id="detach">↩ Detach</button></div><small>Character upload करो → hand/wrist/palm bone चुनो → scene में object select करके Attach दबाओ.</small></div>
 <div class="sec"><h3>Face</h3><label class="pick" style="display:block;text-align:center">🖼️ Face Photo<input id="face" type="file" accept="image/*"></label><button id="applyFace" style="width:100%;margin-top:5px">Apply Face Texture</button><small>Uploaded photo selected model की material पर लगती है.</small></div>
 <div class="sec"><h3>🔎 Search 3D Objects</h3><div class="row2"><input id="assetSearch" placeholder="car, bike, house, phone..." style="grid-column:1/-1"><button id="assetSearchBtn" class="primary">Search</button></div><div id="assetResults" class="list"></div><small>Search results internet catalog से आएंगे. Downloadable model को GLB/GLTF में download करके 3D Object से import कर सकते हो. हर model का license/permission अलग हो सकता है.</small></div><div class="sec"><h3>Object Library</h3><div id="libraryBtns" class="row2"></div></div>
+<div class="sec"><h3>🎮 Character Control</h3>
+<div class="row2"><button id="charStand" class="primary">🧍 Stand</button><button id="charSit">🪑 Sit</button></div>
+<div class="row2"><button id="charWalk">🚶 Walk</button><button id="charRun">🏃 Run</button></div>
+<div class="row2"><button id="charFight">🥊 Fight</button><button id="charStop">⏹ Stop</button></div>
+<div class="row2"><button id="charLeft">⬅ Left</button><button id="charRight">Right ➡</button></div>
+<div class="row2"><button id="charForward">⬆ Forward</button><button id="charBack">⬇ Back</button></div>
+<label>Move speed <small id="charSpeedVal">1.0×</small><input id="charSpeed" type="range" min=".2" max="4" step=".1" value="1" style="width:100%"></label>
+<small>Character select karo. WASD/arrow keys se move karo; Run/Fight/Sit rigged character par hi proper limb animation dega. Unrigged model mein movement/pose limited hogi.</small></div>
 <div class="sec"><h3>🏃 Quick Actions</h3><div class="row2"><button id="actJump">⬆ Jump</button><button id="actRun">🏃 Run</button></div><div class="row2"><button id="actAttack">👊 Attack</button><button id="actStop">⏹ Stop</button></div><small>Basic preview action. Real character-specific fighting animation ke liye rigged model animation chahiye.</small></div><div class="sec"><h3>Animation</h3><button id="key">➕ Keyframe</button><button id="clearKeys">Clear Keys</button><div id="keys"><small>No keyframes</small></div></div>
 <div class="sec"><h3>🌦️ Weather / Environment</h3>
 <label>Weather<select id="weatherMode" style="width:100%;margin:5px 0"><option value="clear">Clear / साफ</option><option value="sunny">Sunny / धूप</option><option value="cloudy">Cloudy / बादल</option><option value="rain">Rain / बारिश</option><option value="snow">Snow / बर्फ</option><option value="fog">Fog / कोहरा</option><option value="night">Night / रात</option></select></label>
@@ -373,7 +381,57 @@ let recorder,chunks=[];document.getElementById('rec').onclick=()=>{if(recorder&&
 async function searchAssets(){const q=document.getElementById('assetSearch').value.trim();const box=document.getElementById('assetResults');if(!q){box.innerHTML='<small>पहले object का नाम लिखो.</small>';return}box.innerHTML='<small>Searching '+q+'…</small>';try{const res=await fetch('https://api.sketchfab.com/v3/search?type=models&q='+encodeURIComponent(q)+'&count=12');if(!res.ok)throw new Error('search');const d=await res.json();box.innerHTML='';(d.results||[]).forEach(x=>{const b=document.createElement('button');b.textContent='➕ '+(x.name||'3D Model');b.onclick=()=>{const u=x.viewerUrl||('https://sketchfab.com/3d-models/'+x.uid);msg('Model page opened — use Download if the model is downloadable, then upload the GLB/GLTF here.');window.open(u,'_blank')};box.appendChild(b)});if(!d.results?.length)box.innerHTML='<small>No model found.</small>'}catch(e){box.innerHTML='<small>Online search अभी उपलब्ध नहीं है. Internet connection/API access check करो.</small>'}}document.getElementById('assetSearchBtn').onclick=searchAssets;document.getElementById('assetSearch').addEventListener('keydown',e=>{if(e.key==='Enter')searchAssets()});
 const libraryData={Car:()=>{let g=new THREE.Group();let b=new THREE.Mesh(new THREE.BoxGeometry(2.8,.7,1.4),new THREE.MeshStandardMaterial({color:0x3b82f6}));b.position.y=.7;g.add(b);let roof=new THREE.Mesh(new THREE.BoxGeometry(1.5,.5,1.2),new THREE.MeshStandardMaterial({color:0x1e293b}));roof.position.set(-.1,1.3,0);g.add(roof);for(let x of [-.9,.9])for(let z of [-.75,.75]){let w=new THREE.Mesh(new THREE.CylinderGeometry(.32,.32,.18,24),new THREE.MeshStandardMaterial({color:0x111827}));w.rotation.x=Math.PI/2;w.position.set(x,.35,z);g.add(w)}return g},House:()=>{let g=new THREE.Group();let b=new THREE.Mesh(new THREE.BoxGeometry(2.5,2,2.2),new THREE.MeshStandardMaterial({color:0xd1d5db}));b.position.y=1;g.add(b);let r=new THREE.Mesh(new THREE.ConeGeometry(1.8,.9,4),new THREE.MeshStandardMaterial({color:0x92400e}));r.rotation.y=Math.PI/4;r.position.y=2.45;g.add(r);return g},Phone:()=>new THREE.Mesh(new THREE.BoxGeometry(.7,1.4,.12),new THREE.MeshStandardMaterial({color:0x111827,metalness:.2})),Chair:()=>{let g=new THREE.Group();let m=new THREE.MeshStandardMaterial({color:0x92400e});let s=new THREE.Mesh(new THREE.BoxGeometry(1.4,.2,1.3),m);s.position.y=1.3;g.add(s);let back=new THREE.Mesh(new THREE.BoxGeometry(1.4,1.6,.2),m);back.position.set(0,2,.55);g.add(back);for(let x of [-.5,.5])for(let z of [-.45,.45]){let l=new THREE.Mesh(new THREE.BoxGeometry(.15,1.3,.15),m);l.position.set(x,.65,z);g.add(l)}return g}};for(const n of Object.keys(libraryData)){let b=document.createElement('button');b.textContent=n;b.onclick=()=>{saveUndo('add '+n);let o=libraryData[n]();o.userData={editable:true,name:n,type:'prop'};scene.add(o);pick(o);refresh();msg(n+' added')};document.getElementById('libraryBtns').appendChild(b)}
 document.getElementById('library').onclick=()=>document.getElementById('panel').classList.toggle('open');
+
+let charMode='stand',charMotionStart=0,charBase=null,charBones={};
+function cacheCharacterRig(){
+ charBones={};if(!character)return;
+ character.traverse(o=>{if(o.isBone){const n=o.name.toLowerCase();if(/hip|pelvis/.test(n))charBones.hips=o;if(/spine|chest/.test(n)&&!charBones.spine)charBones.spine=o;if(/left.*(arm|shoulder|upperarm)/.test(n))charBones.leftArm=o;if(/right.*(arm|shoulder|upperarm)/.test(n))charBones.rightArm=o;if(/left.*(leg|thigh|upleg)/.test(n))charBones.leftLeg=o;if(/right.*(leg|thigh|upleg)/.test(n))charBones.rightLeg=o;}});
+}
+function setCharMode(mode){
+ if(!character)return msg('Pehle Character / Any File se character upload karo');
+ cacheCharacterRig();charMode=mode;charMotionStart=performance.now();
+ charBase={p:character.position.clone(),r:character.rotation.clone(),boneRot:{}};
+ Object.entries(charBones).forEach(([k,b])=>charBase.boneRot[k]=b.rotation.clone());
+ quickAction=null;quickOrigin=null;
+ if(mode==='sit'){
+  if(charBones.hips)charBones.hips.rotation.x=-.45;
+  if(charBones.spine)charBones.spine.rotation.x=.15;
+  if(charBones.leftLeg)charBones.leftLeg.rotation.x=-1.1;
+  if(charBones.rightLeg)charBones.rightLeg.rotation.x=-1.1;
+  msg(Object.keys(charBones).length?'Sit pose applied to available rig bones':'This model has no recognised rig bones; use a seated/rigged character for a real sitting pose');
+ }else if(mode==='stand'){
+  Object.entries(charBase.boneRot).forEach(([k,v])=>charBones[k].rotation.copy(v));
+  msg('Character standing');
+ }else msg('Character mode: '+mode);
+}
+function moveCharacter(dx,dz,run=false){
+ if(!character)return msg('Pehle character upload karo');
+ if(!charBase||!['walk','run'].includes(charMode))setCharMode(run?'run':'walk');
+ const speed=Number(document.getElementById('charSpeed').value)*(run?0.22:0.1);
+ character.position.x+=dx*speed;character.position.z+=dz*speed;
+ if(dx||dz)character.rotation.y=Math.atan2(dx,dz);
+ syncGizmo();updateCenterStatus();
+}
+document.getElementById('charSpeed').oninput=e=>document.getElementById('charSpeedVal').textContent=Number(e.target.value).toFixed(1)+'×';
+document.getElementById('charStand').onclick=()=>setCharMode('stand');
+document.getElementById('charSit').onclick=()=>setCharMode('sit');
+document.getElementById('charWalk').onclick=()=>setCharMode('walk');
+document.getElementById('charRun').onclick=()=>setCharMode('run');
+document.getElementById('charFight').onclick=()=>setCharMode('fight');
+document.getElementById('charStop').onclick=()=>{if(character&&charBase){character.position.copy(charBase.p);character.rotation.copy(charBase.r);Object.entries(charBase.boneRot||{}).forEach(([k,v])=>{if(charBones[k])charBones[k].rotation.copy(v)})}charMode='stand';msg('Character action stopped/reset')};
+document.getElementById('charLeft').onclick=()=>moveCharacter(-1,0,charMode==='run');
+document.getElementById('charRight').onclick=()=>moveCharacter(1,0,charMode==='run');
+document.getElementById('charForward').onclick=()=>moveCharacter(0,-1,charMode==='run');
+document.getElementById('charBack').onclick=()=>moveCharacter(0,1,charMode==='run');
+addEventListener('keydown',e=>{
+ if(/INPUT|TEXTAREA|SELECT/.test((document.activeElement&&document.activeElement.tagName)||''))return;
+ if(!character)return;
+ const k=e.key.toLowerCase();if(['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright'].includes(k)){e.preventDefault();const dx=(k==='a'||k==='arrowleft')?-1:(k==='d'||k==='arrowright')?1:0;const dz=(k==='w'||k==='arrowup')?-1:(k==='s'||k==='arrowdown')?1:0;moveCharacter(dx,dz,charMode==='run')}
+});
+
 function loop(){requestAnimationFrame(loop);
+ if(character&&charBase&&charMode==='fight'){const t=(performance.now()-charMotionStart)/1000;if(charBones.leftArm)charBones.leftArm.rotation.x=Math.sin(t*10)*.9;if(charBones.rightArm)charBones.rightArm.rotation.x=-Math.max(0,Math.sin(t*10))*.9;if(charBones.spine)charBones.spine.rotation.y=Math.sin(t*10)*.12}
+ if(character&&charBase&&(charMode==='walk'||charMode==='run')){const t=(performance.now()-charMotionStart)/1000;const amp=charMode==='run'?.6:.25;if(charBones.leftLeg)charBones.leftLeg.rotation.x=Math.sin(t*(charMode==='run'?13:7))*amp;if(charBones.rightLeg)charBones.rightLeg.rotation.x=-Math.sin(t*(charMode==='run'?13:7))*amp;if(charBones.leftArm)charBones.leftArm.rotation.x=-Math.sin(t*(charMode==='run'?13:7))*amp;if(charBones.rightArm)charBones.rightArm.rotation.x=Math.sin(t*(charMode==='run'?13:7))*amp}
  if(quickAction&&selected&&quickOrigin){const t=(performance.now()-quickStart)/1000;
  if(quickAction==='jump'){const p=t%1.1;selected.position.y=quickOrigin.p.y+Math.max(0,Math.sin(p*Math.PI/1.1))*1.8;if(t>1.1){selected.position.copy(quickOrigin.p);quickAction=null}}
  else if(quickAction==='run'){selected.position.x=quickOrigin.p.x+Math.sin(t*9)*.7;selected.rotation.y=quickOrigin.r.y+Math.sin(t*9)*.15}
