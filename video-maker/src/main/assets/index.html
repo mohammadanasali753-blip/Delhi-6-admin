@@ -16,6 +16,7 @@
 <div class="row2"><button id="showSelected">👁 Show selected</button><button id="focusSelected">🎯 Find object</button></div>
 <small>Object/character select karo. Scene mein coloured axis handles dikhengi: red=X, green=Y, blue=Z. Handle ko drag karke move ya resize karo.</small></div>
 <div class="sec"><h3>Transform</h3><div id="centerReadout" style="padding:8px;margin:5px 0;background:#182536;border:1px solid #39445c;border-radius:8px;font-size:12px;color:#38e38b">Center: object select karo</div><small>Green dot = scene ka centre (X=0, Y=0, Z=0). Red/blue lines axes hain.</small><div class="row"><input id="px" type="number" step=".1" placeholder="X"><input id="py" type="number" step=".1" placeholder="Y"><input id="pz" type="number" step=".1" placeholder="Z"></div><div class="row"><input id="rx" type="number" step="5" placeholder="RX"><input id="ry" type="number" step="5" placeholder="RY"><input id="rz" type="number" step="5" placeholder="RZ"></div><div class="row"><input id="sx" type="number" step=".1" placeholder="SX"><input id="sy" type="number" step=".1" placeholder="SY"><input id="sz" type="number" step=".1" placeholder="SZ"></div><div class="row2"><button id="dup">Duplicate</button><button id="del">Delete</button></div>
+<div class="row2" style="margin-top:6px"><button id="placeOnTop" class="primary">🏢 Character on top</button><button id="dropToGround">⬇ Ground par</button></div><small>Building/object select karke “Character on top” dabao. Imported model ki original scale/proportions preserve rahengi.</small>
 <div style="margin-top:8px"><label>Move Left / Right (X) <small id="moveXVal">0</small><input id="moveX" type="range" min="-10" max="10" step=".1" value="0" style="width:100%"></label>
 <label>Move Up / Down (Y) <small id="moveYVal">0</small><input id="moveY" type="range" min="-5" max="10" step=".1" value="0" style="width:100%"></label>
 <label>Front / Back (Z) <small id="moveZVal">0</small><input id="moveZ" type="range" min="-15" max="15" step=".1" value="0" style="width:100%"></label>
@@ -278,6 +279,34 @@ document.getElementById('character').onchange=e=>Array.from(e.target.files||[]).
 document.getElementById('objectsFile').onchange=e=>Array.from(e.target.files||[]).forEach(f=>importModel(f,false));
 document.getElementById('attach').onclick=()=>{if(!selected||!character)return msg('Select an object and character first');let b=character.getObjectByProperty('uuid',bones.value);if(!b||!b.isBone)return msg('Select a hand/wrist bone');b.attach(selected);selected.userData.attachedTo=b.name;msg('Attached to '+b.name);};
 document.getElementById('detach').onclick=()=>{if(!selected)return;scene.attach(selected);delete selected.userData.attachedTo;msg('Detached')};
+function getWorldBounds(o){o.updateWorldMatrix(true,true);return new THREE.Box3().setFromObject(o)}
+document.getElementById('placeOnTop').onclick=()=>{
+ const ch=character;
+ if(!ch)return msg('Pehle Character / Any File se character upload karo');
+ let target=selected&&selected!==ch?selected:null;
+ if(!target){
+  const candidates=scene.children.filter(o=>o.userData&&o.userData.editable&&o!==ch&&o.visible);
+  candidates.sort((a,b)=>{const A=getWorldBounds(a),B=getWorldBounds(b);return (B.getSize(new THREE.Vector3()).x*B.getSize(new THREE.Vector3()).z)-(A.getSize(new THREE.Vector3()).x*A.getSize(new THREE.Vector3()).z)});
+  target=candidates[0];
+ }
+ if(!target)return msg('Pehle building/map ka 3D model upload karke select karo');
+ saveUndo('place character on top');
+ const tb=getWorldBounds(target),cb=getWorldBounds(ch);
+ if(tb.isEmpty()||cb.isEmpty())return msg('Model bounds read nahi hue');
+ const targetCenter=tb.getCenter(new THREE.Vector3());
+ ch.position.x+=targetCenter.x-cb.getCenter(new THREE.Vector3()).x;
+ ch.position.z+=targetCenter.z-cb.getCenter(new THREE.Vector3()).z;
+ ch.position.y+=tb.max.y-cb.min.y+0.03;
+ pick(ch);refresh();buildGizmo();updateCenterStatus();
+ msg('Character building ke upar place kar diya. Zarurat ho to X/Z se adjust karo.');
+};
+document.getElementById('dropToGround').onclick=()=>{
+ if(!selected)return msg('Pehle character/object select karo');
+ saveUndo('place on ground');
+ const b=getWorldBounds(selected);if(b.isEmpty())return msg('Object bounds read nahi hue');
+ selected.position.y-=b.min.y;
+ pick(selected);buildGizmo();updateCenterStatus();msg('Object ground level par rakh diya');
+};
 document.getElementById('face').onchange=e=>{let f=e.target.files[0];if(f)faceURL=URL.createObjectURL(f);msg('Face image ready')};
 document.getElementById('applyFace').onclick=()=>{if(!selected||!faceURL)return msg('Select mesh and upload face image');let tx=new THREE.TextureLoader().load(faceURL);selected.traverse(o=>{if(o.isMesh){if(Array.isArray(o.material))o.material=o.material.map(m=>{let n=m.clone();n.map=tx;n.needsUpdate=true;return n});else{let n=o.material.clone();n.map=tx;n.needsUpdate=true;o.material=n}}});msg('Face texture applied')};
 document.getElementById('media').onchange=e=>{const fs=Array.from(e.target.files||[]);if(!fs.length){msg('File select nahi hua');e.target.value='';return}fs.forEach(f=>{const ext=(f.name.split('.').pop()||'').toLowerCase();const isVideo=f.type.startsWith('video/')||['mp4','m4v','mov','webm','mkv','3gp','3gpp','avi','mpeg','mpg','ogv'].includes(ext);const isImage=f.type.startsWith('image/')||['jpg','jpeg','png','gif','webp','bmp','heic','heif','avif'].includes(ext);if(isVideo){videoURL=URL.createObjectURL(f);let v=document.createElement('video');v.src=videoURL;v.loop=true;v.muted=true;v.playsInline=true;v.autoplay=true;v.addEventListener('error',()=>msg('Video import failed: unsupported format or unreadable file — try MP4 (H.264).'),{once:true});v.addEventListener('loadeddata',()=>{try{let tex=new THREE.VideoTexture(v);tex.minFilter=THREE.LinearFilter;tex.magFilter=THREE.LinearFilter;let p=new THREE.Mesh(new THREE.PlaneGeometry(8,4.5),new THREE.MeshBasicMaterial({map:tex,side:THREE.DoubleSide}));p.position.set(0,2,-4);p.userData={editable:true,name:'Video '+f.name,type:'media'};scene.add(p);pick(p);refresh();msg('Video added: '+f.name)}catch(err){msg('Could not display video: '+err.message)}},{once:true});v.play().catch(()=>{msg('Video selected; tap the screen or retry if playback is blocked.')})}else if(isImage){let fr=new FileReader();fr.onload=()=>{let im=new Image();im.onload=()=>{let tx=new THREE.Texture(im);tx.needsUpdate=true;let p=new THREE.Mesh(new THREE.PlaneGeometry(8,5),new THREE.MeshBasicMaterial({map:tx,side:THREE.DoubleSide}));p.position.set(0,2,-4);p.userData={editable:true,name:'Photo '+f.name,type:'media'};scene.add(p);pick(p);refresh();msg('Photo added: '+f.name)};im.src=fr.result};fr.onerror=()=>msg('Photo read failed');fr.readAsDataURL(f)}});e.target.value=''};
