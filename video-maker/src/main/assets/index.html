@@ -492,10 +492,10 @@ function cacheCharacterRig(){
 function setCharMode(mode){
  if(!character)return msg('Pehle Character / Any File se character upload karo');
  cacheCharacterRig();charMode=mode;charMotionStart=performance.now();
- if(characterActions.length){characterActions.forEach(x=>{x.action.stop();x.action.enabled=false});const patterns={stand:/idle|stand|breath/,sit:/sit|sitting/,walk:/walk/,run:/run|sprint/,fight:/fight|punch|attack|combat/,talk:/talk|speak|chat/,wave:/wave|greet/};const found=characterActions.find(x=>patterns[mode]?.test(x.name));if(found){found.action.enabled=true;found.action.reset().fadeIn(.15).play();document.getElementById('clipStatus').textContent='Playing animation: '+found.name;return msg('Animation playing: '+found.name)}else document.getElementById('clipStatus').textContent='Ready clip nahi mili: '+mode+'. Basic pose/movement use ho sakti hai.';}
  charBase={p:character.position.clone(),r:character.rotation.clone(),boneRot:{}};
  Object.entries(charBones).forEach(([k,b])=>charBase.boneRot[k]=b.rotation.clone());
  quickAction=null;quickOrigin=null;
+ if(characterActions.length){characterActions.forEach(x=>{x.action.stop();x.action.enabled=false});const patterns={stand:/idle|stand|breath/,sit:/sit|sitting/,walk:/walk/,run:/run|sprint/,fight:/fight|punch|attack|combat/,talk:/talk|speak|chat/,wave:/wave|greet/};const found=characterActions.find(x=>patterns[mode]?.test(x.name));if(found){found.action.enabled=true;found.action.reset().fadeIn(.15).play();document.getElementById('clipStatus').textContent='Playing animation: '+found.name;return msg('Animation playing: '+found.name)}else document.getElementById('clipStatus').textContent='Ready clip nahi mili: '+mode+'. Procedural fallback active.';}
  if(mode==='sit'){
   if(charBones.hips)charBones.hips.rotation.x=-.45;
   if(charBones.spine)charBones.spine.rotation.x=.15;
@@ -509,21 +509,22 @@ function setCharMode(mode){
 }
 function moveCharacter(dx,dz,run=false){
  if(!character)return msg('Pehle character upload karo');
- if(!charBase||!['walk','run'].includes(charMode))setCharMode(run?'run':'walk');
+ const mode=run?'run':'walk';if(charMode!==mode)setCharMode(mode);
  const speed=Number(document.getElementById('charSpeed').value)*(run?0.22:0.1);
  character.position.x+=dx*speed;character.position.z+=dz*speed;
- if(dx||dz)character.rotation.y=Math.atan2(dx,dz);
+ if(dx||dz){character.rotation.y=Math.atan2(dx,dz);moveHeading={x:dx,z:dz};}
  syncGizmo();updateCenterStatus();
 }
+let moveHeading={x:0,z:-1};
 document.getElementById('charSpeed').oninput=e=>document.getElementById('charSpeedVal').textContent=Number(e.target.value).toFixed(1)+'×';
 document.getElementById('charStand').onclick=()=>setCharMode('stand');
 document.getElementById('charSit').onclick=()=>setCharMode('sit');
-document.getElementById('charWalk').onclick=()=>setCharMode('walk');
-document.getElementById('charRun').onclick=()=>setCharMode('run');
+document.getElementById('charWalk').onclick=()=>{moveHeading={x:0,z:-1};setCharMode('walk');msg('Walk started — character aage chalega')};
+document.getElementById('charRun').onclick=()=>{moveHeading={x:0,z:-1};setCharMode('run');msg('Run started — character lagatar aage bhagega')};
 document.getElementById('charFight').onclick=()=>setCharMode('fight');
 document.getElementById('charTalk').onclick=()=>setCharMode('talk');
 document.getElementById('charWave').onclick=()=>setCharMode('wave');
-document.getElementById('charStop').onclick=()=>{if(character&&charBase){character.position.copy(charBase.p);character.rotation.copy(charBase.r);Object.entries(charBase.boneRot||{}).forEach(([k,v])=>{if(charBones[k])charBones[k].rotation.copy(v)})}charMode='stand';msg('Character action stopped/reset')};
+document.getElementById('charStop').onclick=()=>{charMode='stand';if(characterActions.length)characterActions.forEach(x=>{x.action.stop();x.action.enabled=false});if(character&&charBase)Object.entries(charBase.boneRot||{}).forEach(([k,v])=>{if(charBones[k])charBones[k].rotation.copy(v)});msg('Character stopped in place')};
 document.getElementById('charLeft').onclick=()=>moveCharacter(-1,0,charMode==='run');
 document.getElementById('charRight').onclick=()=>moveCharacter(1,0,charMode==='run');
 document.getElementById('charForward').onclick=()=>moveCharacter(0,-1,charMode==='run');
@@ -535,6 +536,9 @@ addEventListener('keydown',e=>{
 });
 
 function loop(){requestAnimationFrame(loop);
+ if(character&&['walk','run'].includes(charMode)){const dt=1/60;const run=charMode==='run';const speed=Number(document.getElementById('charSpeed').value)*(run?1.55:.55)*dt;character.position.x+=moveHeading.x*speed;character.position.z+=moveHeading.z*speed;const t=(performance.now()-charMotionStart)/1000;const amp=run?.65:.28; if(!characterActions.length){if(charBones.leftLeg)charBones.leftLeg.rotation.x=Math.sin(t*(run?13:7))*amp;if(charBones.rightLeg)charBones.rightLeg.rotation.x=-Math.sin(t*(run?13:7))*amp;if(charBones.leftArm)charBones.leftArm.rotation.x=-Math.sin(t*(run?13:7))*amp;if(charBones.rightArm)charBones.rightArm.rotation.x=Math.sin(t*(run?13:7))*amp;} }
+ if(character&&charBase&&charMode==='talk'&&!characterActions.length){const t=(performance.now()-charMotionStart)/1000;if(charBones.spine)charBones.spine.rotation.x=Math.sin(t*3)*.06;if(charBones.leftArm)charBones.leftArm.rotation.x=-.25+Math.sin(t*4)*.22;if(charBones.rightArm)charBones.rightArm.rotation.x=-.25-Math.sin(t*4)*.22;}
+ if(character&&charBase&&charMode==='wave'&&!characterActions.length){const t=(performance.now()-charMotionStart)/1000;if(charBones.rightArm)charBones.rightArm.rotation.z=-1.1+Math.sin(t*8)*.35;if(charBones.spine)charBones.spine.rotation.y=Math.sin(t*2)*.08;}
  if(character&&charBase&&charMode==='fight'){const t=(performance.now()-charMotionStart)/1000;if(charBones.leftArm)charBones.leftArm.rotation.x=Math.sin(t*10)*.9;if(charBones.rightArm)charBones.rightArm.rotation.x=-Math.max(0,Math.sin(t*10))*.9;if(charBones.spine)charBones.spine.rotation.y=Math.sin(t*10)*.12}
  if(!characterActions.length&&character&&charBase&&(charMode==='walk'||charMode==='run')){const t=(performance.now()-charMotionStart)/1000;const amp=charMode==='run'?.6:.25;if(charBones.leftLeg)charBones.leftLeg.rotation.x=Math.sin(t*(charMode==='run'?13:7))*amp;if(charBones.rightLeg)charBones.rightLeg.rotation.x=-Math.sin(t*(charMode==='run'?13:7))*amp;if(charBones.leftArm)charBones.leftArm.rotation.x=-Math.sin(t*(charMode==='run'?13:7))*amp;if(charBones.rightArm)charBones.rightArm.rotation.x=Math.sin(t*(charMode==='run'?13:7))*amp}
  if(quickAction&&selected&&quickOrigin){const t=(performance.now()-quickStart)/1000;
