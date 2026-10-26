@@ -5,9 +5,9 @@
 *{box-sizing:border-box}body{margin:0;background:#080b12;color:#f4f6fb;font-family:Arial,sans-serif;overflow:hidden}button,.pick{background:#20283a;color:#fff;border:1px solid #3b4861;border-radius:9px;padding:10px 11px;font-size:12px;min-height:40px}button:active,.pick:active{background:#4b3f72}input[type=file]{display:none}#top{height:58px;background:#111725;display:flex;gap:6px;padding:7px;overflow-x:auto;border-bottom:1px solid #293247;white-space:nowrap}#top>*{flex:0 0 auto}.primary{background:#6d3fd4;border-color:#9168ee}#layout{height:calc(100vh - 58px);display:grid;grid-template-columns:minmax(0,1fr) 285px}#view{position:relative;min-width:0;touch-action:none}canvas{display:block;width:100%;height:100%}#panel{background:#101522;border-left:1px solid #293247;padding:9px;overflow:auto}.sec{padding:9px 0;border-bottom:1px solid #273044}h3{font-size:14px;margin:0 0 8px}.row{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin:5px 0}.row2{display:grid;grid-template-columns:1fr 1fr;gap:5px}input[type=number],select{width:100%;background:#171e2d;color:#fff;border:1px solid #39445c;border-radius:7px;padding:8px;min-height:38px}.list{max-height:130px;overflow:auto}.list button{width:100%;text-align:left;margin:2px 0}small{color:#9ba6bd;line-height:1.35}#status{position:absolute;left:9px;bottom:9px;background:#05070ce8;padding:8px 10px;border-radius:8px;font-size:11px;max-width:75%}#toast{position:fixed;top:68px;left:50%;transform:translateX(-50%);background:#181f2e;padding:9px 13px;border-radius:10px;display:none;z-index:9}@media(max-width:700px){#layout{grid-template-columns:1fr}#panel{position:absolute;right:0;top:0;bottom:0;width:270px;z-index:5;transform:translateX(100%);transition:.2s}#panel.open{transform:translateX(0)}#menu{display:block!important}}#menu{display:none}
 </style>
 </head><body><div id="top">
-<label class="pick primary">📁 Photo / Video<input id="media" type="file" accept="image/*,video/*" multiple></label>
-<label class="pick">🧍 Character<input id="character" type="file" accept=".glb,.gltf,.fbx,.obj" multiple></label>
-<label class="pick">🧩 3D Object<input id="objectsFile" type="file" accept=".glb,.gltf,.fbx,.obj" multiple></label>
+<label class="pick primary">📁 Photo / Video / File<input id="media" type="file" accept="*/*" multiple></label>
+<label class="pick">🧍 Character / Any File<input id="character" type="file" accept="*/*" multiple></label>
+<label class="pick">🧩 3D Object / Any File<input id="objectsFile" type="file" accept="*/*" multiple></label>
 <button id="library">🧰 Objects</button><button id="add">＋ Cube</button><button id="menu">☰ Edit</button><button id="save">💾 Save</button><label class="pick">📂 Load<input id="load" type="file" accept=".json,application/json"></label><button id="rec" class="primary">⏺ Record</button></div>
 <div id="layout"><main id="view"><div id="status">Ready — Character, Photo/Video और 3D Object upload कर सकते हो</div></main><aside id="panel">
 <div class="sec"><h3>Scene Objects</h3><div id="sceneList" class="list"></div></div>
@@ -82,7 +82,7 @@ function importModel(f,isCharacter=false){
  if(!f)return;
  const ext=(f.name.split('.').pop()||'').toLowerCase();
  const allowed=['glb','gltf','fbx','obj'];
- if(!allowed.includes(ext)){msg('Unsupported file: '+ext+'. GLB sabse achha hai; GLTF, FBX, OBJ bhi supported hain. ZIP/RAR/3DS abhi supported nahi.');return}
+ if(!allowed.includes(ext)){msg('File select ho gayi, lekin '+ext+' ko 3D model ki tarah padhne ka loader nahi hai. 3D ke liye GLB sabse reliable hai; GLTF ke saath .bin/textures bhi chahiye. ZIP/RAR ko pehle extract karo.');return}
  const url=URL.createObjectURL(f);msg('Loading '+f.name+'…');
  const done=o=>{
    if(!o){msg('Model empty hai ya load nahi hua.');return}
