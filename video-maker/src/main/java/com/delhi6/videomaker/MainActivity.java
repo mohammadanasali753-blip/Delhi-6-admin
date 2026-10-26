@@ -32,37 +32,19 @@ public class MainActivity extends Activity {
                 if (fileCallback != null) fileCallback.onReceiveValue(null);
                 fileCallback = cb;
                 try {
-                    // Use the intent supplied by WebView first so its file-input mode,
-                    // accept types and Android URI permission grants stay consistent.
-                    Intent intent = p.createIntent();
-                    startActivityForResult(intent, FILE_CHOOSER_REQUEST);
+                    Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
+                    intent.addCategory(Intent.CATEGORY_OPENABLE);
+                    intent.setType("*/*");
+                    intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                    intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE,
+                            p.getMode() == FileChooserParams.MODE_OPEN_MULTIPLE);
+                    startActivityForResult(Intent.createChooser(intent, "Select photo, video or 3D file"),
+                            FILE_CHOOSER_REQUEST);
                     return true;
-                } catch (Exception webViewIntentError) {
-                    try {
-                        // Fallback for Android document providers that cannot handle
-                        // WebView's generated intent, including mixed media/3D uploads.
-                        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-                        intent.addCategory(Intent.CATEGORY_OPENABLE);
-                        intent.setType("*/*");
-                        intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE,
-                                p.getMode() == FileChooserParams.MODE_OPEN_MULTIPLE);
-                        startActivityForResult(intent, FILE_CHOOSER_REQUEST);
-                        return true;
-                    } catch (Exception documentError) {
-                        try {
-                            Intent fallback = new Intent(Intent.ACTION_GET_CONTENT);
-                            fallback.addCategory(Intent.CATEGORY_OPENABLE);
-                            fallback.setType("*/*");
-                            fallback.putExtra(Intent.EXTRA_ALLOW_MULTIPLE,
-                                    p.getMode() == FileChooserParams.MODE_OPEN_MULTIPLE);
-                            startActivityForResult(Intent.createChooser(fallback, "Select a file"), FILE_CHOOSER_REQUEST);
-                            return true;
-                        } catch (Exception fallbackError) {
-                            if (fileCallback != null) fileCallback.onReceiveValue(null);
-                            fileCallback = null;
-                            return false;
-                        }
-                    }
+                } catch (Exception e) {
+                    if (fileCallback != null) fileCallback.onReceiveValue(null);
+                    fileCallback = null;
+                    return false;
                 }
             }
         });
