@@ -34,20 +34,25 @@ public class MainActivity extends Activity {
                 }
                 fileCallback = cb;
                 try {
-                    Intent intent = p.createIntent();
+                    // WebView's generated intent can apply incompatible filters for mixed
+                    // image/video and 3D formats on some Android document providers.
+                    // Open the system picker without restrictive MIME filters; the web
+                    // editor validates supported extensions after the user selects a file.
+                    Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+                    intent.addCategory(Intent.CATEGORY_OPENABLE);
+                    intent.setType("*/*");
+                    intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE,
+                            p.getMode() == FileChooserParams.MODE_OPEN_MULTIPLE);
                     startActivityForResult(intent, FILE_CHOOSER_REQUEST);
                     return true;
                 } catch (ActivityNotFoundException | IllegalArgumentException e) {
                     try {
-                        Intent fallback = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+                        Intent fallback = new Intent(Intent.ACTION_GET_CONTENT);
                         fallback.addCategory(Intent.CATEGORY_OPENABLE);
                         fallback.setType("*/*");
-                        fallback.putExtra(Intent.EXTRA_MIME_TYPES, new String[] {
-                            "video/*", "image/*", "application/octet-stream",
-                            "model/gltf-binary", "model/gltf+json", "application/json"
-                        });
-                        fallback.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, p.getMode() == FileChooserParams.MODE_OPEN_MULTIPLE);
-                        startActivityForResult(fallback, FILE_CHOOSER_REQUEST);
+                        fallback.putExtra(Intent.EXTRA_ALLOW_MULTIPLE,
+                                p.getMode() == FileChooserParams.MODE_OPEN_MULTIPLE);
+                        startActivityForResult(Intent.createChooser(fallback, "Select a file"), FILE_CHOOSER_REQUEST);
                         return true;
                     } catch (Exception fallbackError) {
                         fileCallback.onReceiveValue(null);
