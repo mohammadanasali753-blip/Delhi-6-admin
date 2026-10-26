@@ -48,6 +48,11 @@
 <div id="rigStatus" style="padding:8px;margin-top:6px;background:#182536;border-radius:8px;font-size:12px">Character upload karke bones check karo.</div>
 <div class="row2" style="margin-top:6px"><button id="showSkeleton">👁 Show Skeleton</button><button id="hideSkeleton">Hide Skeleton</button></div>
 <small>Existing rig/bones automatically detect honge. Unrigged model ke liye proper automatic skinning/weighting chahiye; sirf bones dikhne se mesh deform nahi hota.</small></div>
+<div class="sec"><h3>🦴 Manual Bone Builder</h3>
+<div class="row2"><button id="boneAddMode" class="primary">➕ Add Bone</button><button id="boneFinish">✓ Finish chain</button></div>
+<div class="row2"><button id="boneUndo">↶ Undo bone</button><button id="boneClear">Clear new bones</button></div>
+<div id="manualBoneStatus" style="padding:8px;margin-top:6px;background:#182536;border-radius:8px;font-size:12px">Character upload karo, Add Bone dabao, phir character ke body area par click karo. Har click ek bone point banayega.</div>
+<small>Ye manual skeleton guide/chain banata hai. Existing skinned model mein bone ko mesh se connect karna alag step hai; naye unrigged model mein automatic body deformation ke liye weight painting/skinning abhi included nahi hai.</small></div>
 <div class="sec"><h3>Character Hand / Attach</h3><select id="bones"><option>Upload character first</option></select><div class="row2"><button id="attach">🤝 Attach</button><button id="detach">↩ Detach</button></div><small>Character upload करो → hand/wrist/palm bone चुनो → scene में object select करके Attach दबाओ.</small></div>
 <div class="sec"><h3>Face</h3><label class="pick" style="display:block;text-align:center">🖼️ Face Photo<input id="face" type="file" accept="image/*"></label><button id="applyFace" style="width:100%;margin-top:5px">Apply Face Texture</button><small>Uploaded photo selected model की material पर लगती है.</small></div>
 <div class="sec"><h3>🔎 Search 3D Objects</h3><div class="row2"><input id="assetSearch" placeholder="car, bike, house, phone..." style="grid-column:1/-1"><button id="assetSearchBtn" class="primary">Search</button></div><div id="assetResults" class="list"></div><small>Search results internet catalog से आएंगे. Downloadable model को GLB/GLTF में download करके 3D Object से import कर सकते हो. हर model का license/permission अलग हो सकता है.</small></div><div class="sec"><h3>Object Library</h3><div id="libraryBtns" class="row2"></div></div>
@@ -290,6 +295,58 @@ function importModel(f,isCharacter=false){
 }
 document.getElementById('character').onchange=e=>Array.from(e.target.files||[]).forEach(f=>importModel(f,true));
 document.getElementById('objectsFile').onchange=e=>Array.from(e.target.files||[]).forEach(f=>importModel(f,false));
+
+
+let manualBoneMode=false,manualBones=[],manualBoneLines=[],manualBoneParent=null,manualBonePoints=[];
+function updateManualBoneStatus(t){document.getElementById('manualBoneStatus').textContent=t}
+function clearManualBoneVisuals(){manualBoneLines.forEach(x=>{scene.remove(x);x.geometry.dispose();x.material.dispose()});manualBoneLines=[]}
+function redrawManualBoneLines(){
+ clearManualBoneVisuals();
+ for(let i=1;i<manualBones.length;i++){
+  const a=manualBones[i-1].getWorldPosition(new THREE.Vector3()),b=manualBones[i].getWorldPosition(new THREE.Vector3());
+  const geo=new THREE.BufferGeometry().setFromPoints([a,b]);
+  const line=new THREE.Line(geo,new THREE.LineBasicMaterial({color:0x22d3ee,depthTest:false}));
+  line.renderOrder=1001;scene.add(line);manualBoneLines.push(line);
+ }
+}
+function addManualBoneAt(point){
+ if(!character)return msg('Pehle Character upload karo');
+ const local=character.worldToLocal(point.clone());
+ const b=new THREE.Bone();b.name='ManualBone_'+(manualBones.length+1);b.position.copy(local);
+ if(manualBoneParent)manualBoneParent.add(b);else character.add(b);
+ manualBones.push(b);manualBoneParent=b;
+ const dot=new THREE.Mesh(new THREE.SphereGeometry(.055,10,8),new THREE.MeshBasicMaterial({color:0x22d3ee,depthTest:false}));
+ dot.position.copy(point);dot.renderOrder=1002;dot.userData.manualBoneMarker=true;scene.add(dot);manualBonePoints.push(dot);
+ redrawManualBoneLines();loadBones(character);
+ updateManualBoneStatus('Bone '+manualBones.length+' add ho gayi. Agle joint par click karo; chain banegi. Finish chain dabakar mode band karo.');
+}
+document.getElementById('boneAddMode').onclick=()=>{
+ if(!character)return msg('Pehle Character upload karo');
+ manualBoneMode=true;controls.enabled=false;
+ updateManualBoneStatus('Bone placement ON: character ke head, chest, elbow, wrist, hip, knee, ankle jaise points par click karo.');
+ msg('Add Bone mode ON — model par click karo');
+};
+document.getElementById('boneFinish').onclick=()=>{manualBoneMode=false;controls.enabled=true;manualBoneParent=null;updateManualBoneStatus('Bone placement band. '+manualBones.length+' manual bone(s) banayi. Show Skeleton se existing rig dekho.');};
+document.getElementById('boneUndo').onclick=()=>{
+ if(!manualBones.length)return msg('Undo karne ke liye manual bone nahi hai');
+ const b=manualBones.pop();if(b.parent)b.parent.remove(b);manualBoneParent=manualBones.length?manualBones[manualBones.length-1]:null;
+ const dot=manualBonePoints.pop();if(dot)scene.remove(dot);redrawManualBoneLines();if(character)loadBones(character);
+ updateManualBoneStatus('Last manual bone undo hui. Total: '+manualBones.length);
+};
+document.getElementById('boneClear').onclick=()=>{
+ manualBoneMode=false;controls.enabled=true;manualBones.forEach(b=>{if(b.parent)b.parent.remove(b)});manualBones=[];manualBoneParent=null;
+ manualBonePoints.forEach(x=>scene.remove(x));manualBonePoints=[];clearManualBoneVisuals();if(character)loadBones(character);
+ updateManualBoneStatus('Manual bones clear kar di.');
+};
+renderer.domElement.addEventListener('pointerdown',e=>{
+ if(!manualBoneMode||!character)return;
+ const rect=renderer.domElement.getBoundingClientRect();
+ const mouse=new THREE.Vector2(((e.clientX-rect.left)/rect.width)*2-1,-((e.clientY-rect.top)/rect.height)*2+1);
+ const ray=new THREE.Raycaster();ray.setFromCamera(mouse,camera);
+ const targets=[];character.traverse(o=>{if(o.isMesh)targets.push(o)});
+ const hits=ray.intersectObjects(targets,true);
+ if(hits.length){e.preventDefault();e.stopPropagation();addManualBoneAt(hits[0].point)}
+},true);
 
 let skeletonHelper=null;
 function inspectCharacterRig(){
