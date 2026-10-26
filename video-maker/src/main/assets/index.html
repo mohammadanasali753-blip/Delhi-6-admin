@@ -61,6 +61,8 @@
 <div class="row2"><button id="charStand" class="primary">🧍 Stand</button><button id="charSit">🪑 Sit</button></div>
 <div class="row2"><button id="charWalk">🚶 Walk</button><button id="charRun">🏃 Run</button></div>
 <div class="row2"><button id="charFight">🥊 Fight</button><button id="charStop">⏹ Stop</button></div>
+<div class="row2"><button id="charTalk">🗣️ Talk</button><button id="charWave">👋 Wave</button></div>
+<div id="clipStatus" style="padding:7px;background:#182536;border-radius:8px;font-size:12px">GLB animations check ho rahi hain.</div>
 <div class="row2"><button id="charLeft">⬅ Left</button><button id="charRight">Right ➡</button></div>
 <div class="row2"><button id="charForward">⬆ Forward</button><button id="charBack">⬇ Back</button></div>
 <label>Move speed <small id="charSpeedVal">1.0×</small><input id="charSpeed" type="range" min=".2" max="4" step=".1" value="1" style="width:100%"></label>
@@ -106,7 +108,7 @@ document.getElementById('sceneBrightness').oninput=e=>document.getElementById('s
 document.getElementById('sceneBgColor').oninput=e=>{if(weatherKind==='clear')scene.background=new THREE.Color(e.target.value)};
 
 const grid=new THREE.GridHelper(20,20,0x39445c,0x202838);scene.add(grid);
-let selected=null,character=null,faceURL=null,videoURL=null,keys=[];
+let selected=null,character=null,faceURL=null,videoURL=null,keys=[],characterMixer=null,characterClips=[],characterActions=[];
 const undoStack=[];let quickAction=null,quickStart=0,quickOrigin=null;
 function saveUndo(label){undoStack.push({label,items:scene.children.filter(o=>o.userData&&o.userData.editable).map(o=>({o,p:o.position.clone(),r:o.rotation.clone(),s:o.scale.clone()})),selected});if(undoStack.length>100)undoStack.shift();document.getElementById('undo').textContent='↶ Back ('+undoStack.length+')'}
 function undoLast(){const h=undoStack.pop();if(!h){msg('Undo history khali hai');return}scene.children.filter(o=>o.userData&&o.userData.editable).forEach(o=>scene.remove(o));h.items.forEach(x=>{scene.add(x.o);x.o.position.copy(x.p);x.o.rotation.copy(x.r);x.o.scale.copy(x.s)});selected=h.selected&&h.items.some(x=>x.o===h.selected)?h.selected:null;if(selected)pick(selected);else{clearGizmo();refresh()}document.getElementById('undo').textContent='↶ Back ('+undoStack.length+')';msg('Undo: '+h.label)}
@@ -257,14 +259,14 @@ function importModel(f,isCharacter=false){
  const allowed=['glb','gltf','fbx','obj'];
  if(!allowed.includes(ext)){msg('File select ho gayi, lekin '+ext+' ko 3D model ki tarah padhne ka loader nahi hai. 3D ke liye GLB sabse reliable hai; GLTF ke saath .bin/textures bhi chahiye. ZIP/RAR ko pehle extract karo.');return}
  const url=URL.createObjectURL(f);msg('Loading '+f.name+'…');
- const done=o=>{
+ const done=(o,animations=[])=>{
    if(!o){msg('Model empty hai ya load nahi hua.');return}
    o.userData={...o.userData,editable:true,name:f.name,type:isCharacter?'character':'object'};
    // Preserve the imported model's real proportions and geometry. Do not scale or recenter
    // the root object: doing so can distort offsets, animation rigs, and authored pivots.
    const box=new THREE.Box3().setFromObject(o);
    if(!box.isEmpty())o.userData.modelSize=box.getSize(new THREE.Vector3()).toArray();
-   scene.add(o);if(isCharacter)character=o;pick(o);refresh();updateCenterStatus();
+   scene.add(o);if(isCharacter){character=o;characterClips=animations||o.animations||[];characterMixer=null;characterActions=[];if(characterClips.length){characterMixer=new THREE.AnimationMixer(o);characterActions=characterClips.map(c=>({name:c.name.toLowerCase(),action:characterMixer.clipAction(c)}));document.getElementById('clipStatus').textContent='Ready animations: '+characterClips.map(c=>c.name).join(', ');}else document.getElementById('clipStatus').textContent='Is GLB mein ready-made animations nahi mili; basic procedural movement try hogi.';}pick(o);refresh();updateCenterStatus();
    // Automatically frame the full imported model without changing its actual size.
    const fitBox=new THREE.Box3().setFromObject(o);
    if(!fitBox.isEmpty()){
@@ -490,6 +492,7 @@ function cacheCharacterRig(){
 function setCharMode(mode){
  if(!character)return msg('Pehle Character / Any File se character upload karo');
  cacheCharacterRig();charMode=mode;charMotionStart=performance.now();
+ if(characterActions.length){characterActions.forEach(x=>{x.action.stop();x.action.enabled=false});const patterns={stand:/idle|stand|breath/,sit:/sit|sitting/,walk:/walk/,run:/run|sprint/,fight:/fight|punch|attack|combat/,talk:/talk|speak|chat/,wave:/wave|greet/};const found=characterActions.find(x=>patterns[mode]?.test(x.name));if(found){found.action.enabled=true;found.action.reset().fadeIn(.15).play();document.getElementById('clipStatus').textContent='Playing animation: '+found.name;return msg('Animation playing: '+found.name)}else document.getElementById('clipStatus').textContent='Ready clip nahi mili: '+mode+'. Basic pose/movement use ho sakti hai.';}
  charBase={p:character.position.clone(),r:character.rotation.clone(),boneRot:{}};
  Object.entries(charBones).forEach(([k,b])=>charBase.boneRot[k]=b.rotation.clone());
  quickAction=null;quickOrigin=null;
@@ -518,6 +521,8 @@ document.getElementById('charSit').onclick=()=>setCharMode('sit');
 document.getElementById('charWalk').onclick=()=>setCharMode('walk');
 document.getElementById('charRun').onclick=()=>setCharMode('run');
 document.getElementById('charFight').onclick=()=>setCharMode('fight');
+document.getElementById('charTalk').onclick=()=>setCharMode('talk');
+document.getElementById('charWave').onclick=()=>setCharMode('wave');
 document.getElementById('charStop').onclick=()=>{if(character&&charBase){character.position.copy(charBase.p);character.rotation.copy(charBase.r);Object.entries(charBase.boneRot||{}).forEach(([k,v])=>{if(charBones[k])charBones[k].rotation.copy(v)})}charMode='stand';msg('Character action stopped/reset')};
 document.getElementById('charLeft').onclick=()=>moveCharacter(-1,0,charMode==='run');
 document.getElementById('charRight').onclick=()=>moveCharacter(1,0,charMode==='run');
@@ -531,7 +536,7 @@ addEventListener('keydown',e=>{
 
 function loop(){requestAnimationFrame(loop);
  if(character&&charBase&&charMode==='fight'){const t=(performance.now()-charMotionStart)/1000;if(charBones.leftArm)charBones.leftArm.rotation.x=Math.sin(t*10)*.9;if(charBones.rightArm)charBones.rightArm.rotation.x=-Math.max(0,Math.sin(t*10))*.9;if(charBones.spine)charBones.spine.rotation.y=Math.sin(t*10)*.12}
- if(character&&charBase&&(charMode==='walk'||charMode==='run')){const t=(performance.now()-charMotionStart)/1000;const amp=charMode==='run'?.6:.25;if(charBones.leftLeg)charBones.leftLeg.rotation.x=Math.sin(t*(charMode==='run'?13:7))*amp;if(charBones.rightLeg)charBones.rightLeg.rotation.x=-Math.sin(t*(charMode==='run'?13:7))*amp;if(charBones.leftArm)charBones.leftArm.rotation.x=-Math.sin(t*(charMode==='run'?13:7))*amp;if(charBones.rightArm)charBones.rightArm.rotation.x=Math.sin(t*(charMode==='run'?13:7))*amp}
+ if(!characterActions.length&&character&&charBase&&(charMode==='walk'||charMode==='run')){const t=(performance.now()-charMotionStart)/1000;const amp=charMode==='run'?.6:.25;if(charBones.leftLeg)charBones.leftLeg.rotation.x=Math.sin(t*(charMode==='run'?13:7))*amp;if(charBones.rightLeg)charBones.rightLeg.rotation.x=-Math.sin(t*(charMode==='run'?13:7))*amp;if(charBones.leftArm)charBones.leftArm.rotation.x=-Math.sin(t*(charMode==='run'?13:7))*amp;if(charBones.rightArm)charBones.rightArm.rotation.x=Math.sin(t*(charMode==='run'?13:7))*amp}
  if(quickAction&&selected&&quickOrigin){const t=(performance.now()-quickStart)/1000;
  if(quickAction==='jump'){const p=t%1.1;selected.position.y=quickOrigin.p.y+Math.max(0,Math.sin(p*Math.PI/1.1))*1.8;if(t>1.1){selected.position.copy(quickOrigin.p);quickAction=null}}
  else if(quickAction==='run'){selected.position.x=quickOrigin.p.x+Math.sin(t*9)*.7;selected.rotation.y=quickOrigin.r.y+Math.sin(t*9)*.15}
