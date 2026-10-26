@@ -43,7 +43,12 @@
 <div class="row2"><button data-preset="warm">🌅 Warm</button><button data-preset="cool">❄️ Cool</button></div>
 <div class="row2"><button data-preset="dreamy">✨ Dreamy</button><button data-preset="reset">↩ Original</button></div>
 <small>ये smart commands और presets ऐप के अंदर चलते हैं। असली online AI जो पूरे वीडियो के cuts, beat-sync, captions और effects खुद बनाए, उसके लिए AI service/API जोड़नी होगी।</small>
-</div><div class="sec"><h3>Character Hand / Attach</h3><select id="bones"><option>Upload character first</option></select><div class="row2"><button id="attach">🤝 Attach</button><button id="detach">↩ Detach</button></div><small>Character upload करो → hand/wrist/palm bone चुनो → scene में object select करके Attach दबाओ.</small></div>
+</div><div class="sec"><h3>🦴 Auto Bone / Rig Check</h3>
+<button id="autoRigCheck" class="primary" style="width:100%">🦴 Detect / Load Bones</button>
+<div id="rigStatus" style="padding:8px;margin-top:6px;background:#182536;border-radius:8px;font-size:12px">Character upload karke bones check karo.</div>
+<div class="row2" style="margin-top:6px"><button id="showSkeleton">👁 Show Skeleton</button><button id="hideSkeleton">Hide Skeleton</button></div>
+<small>Existing rig/bones automatically detect honge. Unrigged model ke liye proper automatic skinning/weighting chahiye; sirf bones dikhne se mesh deform nahi hota.</small></div>
+<div class="sec"><h3>Character Hand / Attach</h3><select id="bones"><option>Upload character first</option></select><div class="row2"><button id="attach">🤝 Attach</button><button id="detach">↩ Detach</button></div><small>Character upload करो → hand/wrist/palm bone चुनो → scene में object select करके Attach दबाओ.</small></div>
 <div class="sec"><h3>Face</h3><label class="pick" style="display:block;text-align:center">🖼️ Face Photo<input id="face" type="file" accept="image/*"></label><button id="applyFace" style="width:100%;margin-top:5px">Apply Face Texture</button><small>Uploaded photo selected model की material पर लगती है.</small></div>
 <div class="sec"><h3>🔎 Search 3D Objects</h3><div class="row2"><input id="assetSearch" placeholder="car, bike, house, phone..." style="grid-column:1/-1"><button id="assetSearchBtn" class="primary">Search</button></div><div id="assetResults" class="list"></div><small>Search results internet catalog से आएंगे. Downloadable model को GLB/GLTF में download करके 3D Object से import कर सकते हो. हर model का license/permission अलग हो सकता है.</small></div><div class="sec"><h3>Object Library</h3><div id="libraryBtns" class="row2"></div></div>
 <div class="sec"><h3>🎮 Character Control</h3>
@@ -285,6 +290,36 @@ function importModel(f,isCharacter=false){
 }
 document.getElementById('character').onchange=e=>Array.from(e.target.files||[]).forEach(f=>importModel(f,true));
 document.getElementById('objectsFile').onchange=e=>Array.from(e.target.files||[]).forEach(f=>importModel(f,false));
+
+let skeletonHelper=null;
+function inspectCharacterRig(){
+ const rig=character|| (selected&&selected.userData&&selected.userData.type==='character'?selected:null);
+ if(!rig){document.getElementById('rigStatus').textContent='Pehle Character / Any File se character upload karo.';return msg('Character upload karo')}
+ character=rig;let boneCount=0,skinnedCount=0,meshCount=0;
+ rig.traverse(o=>{if(o.isBone)boneCount++;if(o.isSkinnedMesh)skinnedCount++;if(o.isMesh)meshCount++});
+ loadBones(rig);cacheCharacterRig();
+ const status=document.getElementById('rigStatus');
+ if(boneCount>0){
+  status.textContent='Rig mila: '+boneCount+' bones, '+skinnedCount+' skinned mesh(es). Existing bones select karke attach/pose tools use karo.';
+  msg('Character rig detected: '+boneCount+' bones');
+ }else{
+  status.textContent='Is model mein existing bones nahi mile. Meshes: '+meshCount+'. Skeleton guide dikhaya ja sakta hai, lekin isse mesh apne-aap deform nahi hoga; true auto-rig/skinning ke liye rigging engine/service chahiye.';
+  bones.innerHTML='<option value="">No actual bones — unrigged model</option>';
+  msg('No rig found. This model needs actual skinning/auto-rigging.');
+ }
+}
+document.getElementById('autoRigCheck').onclick=inspectCharacterRig;
+document.getElementById('showSkeleton').onclick=()=>{
+ const rig=character||(selected&&selected.userData&&selected.userData.type==='character'?selected:null);
+ if(!rig)return msg('Pehle character upload/select karo');
+ if(skeletonHelper){scene.remove(skeletonHelper);skeletonHelper.dispose&&skeletonHelper.dispose();skeletonHelper=null}
+ let hasBones=false;rig.traverse(o=>{if(o.isBone)hasBones=true});
+ if(!hasBones){document.getElementById('rigStatus').textContent='Bones nahi mile, isliye real skeleton show nahi ho sakta. Detect / Load Bones status dekho.';return msg('Is model mein actual bones nahi hain')}
+ skeletonHelper=new THREE.SkeletonHelper(rig);skeletonHelper.material.depthTest=false;skeletonHelper.material.transparent=true;skeletonHelper.material.opacity=.95;skeletonHelper.renderOrder=1000;scene.add(skeletonHelper);
+ msg('Skeleton visible');
+};
+document.getElementById('hideSkeleton').onclick=()=>{if(skeletonHelper){scene.remove(skeletonHelper);skeletonHelper.dispose&&skeletonHelper.dispose();skeletonHelper=null}msg('Skeleton hidden')};
+
 document.getElementById('attach').onclick=()=>{if(!selected||!character)return msg('Select an object and character first');let b=character.getObjectByProperty('uuid',bones.value);if(!b||!b.isBone)return msg('Select a hand/wrist bone');b.attach(selected);selected.userData.attachedTo=b.name;msg('Attached to '+b.name);};
 document.getElementById('detach').onclick=()=>{if(!selected)return;scene.attach(selected);delete selected.userData.attachedTo;msg('Detached')};
 function getWorldBounds(o){o.updateWorldMatrix(true,true);return new THREE.Box3().setFromObject(o)}
