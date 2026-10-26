@@ -11,6 +11,10 @@
 <button id="library">🧰 Objects</button><button id="add">＋ Cube</button><button id="menu">☰ Edit</button><button id="save">💾 Save</button><label class="pick">📂 Load<input id="load" type="file" accept=".json,application/json"></label><button id="rec" class="primary">⏺ Record</button></div>
 <div id="layout"><main id="view"><div id="status">Ready — Character, Photo/Video और 3D Object upload कर सकते हो</div></main><aside id="panel">
 <div class="sec"><h3>Scene Objects</h3><div id="sceneList" class="list"></div></div>
+<div class="sec"><h3>🧭 Object Gizmo</h3>
+<div class="row2"><button id="gizmoMove" class="primary">↔ Move</button><button id="gizmoScale">⤢ Resize</button></div>
+<div class="row2"><button id="showSelected">👁 Show selected</button><button id="focusSelected">🎯 Find object</button></div>
+<small>Object/character select karo. Scene mein coloured axis handles dikhengi: red=X, green=Y, blue=Z. Handle ko drag karke move ya resize karo.</small></div>
 <div class="sec"><h3>Transform</h3><div id="centerReadout" style="padding:8px;margin:5px 0;background:#182536;border:1px solid #39445c;border-radius:8px;font-size:12px;color:#38e38b">Center: object select karo</div><small>Green dot = scene ka centre (X=0, Y=0, Z=0). Red/blue lines axes hain.</small><div class="row"><input id="px" type="number" step=".1" placeholder="X"><input id="py" type="number" step=".1" placeholder="Y"><input id="pz" type="number" step=".1" placeholder="Z"></div><div class="row"><input id="rx" type="number" step="5" placeholder="RX"><input id="ry" type="number" step="5" placeholder="RY"><input id="rz" type="number" step="5" placeholder="RZ"></div><div class="row"><input id="sx" type="number" step=".1" placeholder="SX"><input id="sy" type="number" step=".1" placeholder="SY"><input id="sz" type="number" step=".1" placeholder="SZ"></div><div class="row2"><button id="dup">Duplicate</button><button id="del">Delete</button></div>
 <div style="margin-top:8px"><label>Move Left / Right (X) <small id="moveXVal">0</small><input id="moveX" type="range" min="-10" max="10" step=".1" value="0" style="width:100%"></label>
 <label>Move Up / Down (Y) <small id="moveYVal">0</small><input id="moveY" type="range" min="-5" max="10" step=".1" value="0" style="width:100%"></label>
@@ -83,6 +87,63 @@ document.getElementById('sceneBgColor').oninput=e=>{if(weatherKind==='clear')sce
 
 const grid=new THREE.GridHelper(20,20,0x39445c,0x202838);scene.add(grid);
 let selected=null,character=null,faceURL=null,videoURL=null,keys=[];
+let gizmoMode='move',gizmoGroup=null,gizmoDragging=null;
+const raycaster=new THREE.Raycaster(),pointerNdc=new THREE.Vector2();
+function clearGizmo(){if(gizmoGroup){scene.remove(gizmoGroup);gizmoGroup.traverse(o=>{if(o.geometry)o.geometry.dispose();if(o.material){if(Array.isArray(o.material))o.material.forEach(m=>m.dispose());else o.material.dispose()}});gizmoGroup=null}}
+function buildGizmo(){
+ clearGizmo();if(!selected)return;
+ gizmoGroup=new THREE.Group();gizmoGroup.userData.isGizmo=true;
+ const box=new THREE.Box3().setFromObject(selected),sphere=box.getBoundingSphere(new THREE.Sphere());
+ const size=Math.max(.65,Math.min(3,sphere.radius*.7||1));
+ const axes=[{k:'x',color:0xff4545,dir:new THREE.Vector3(1,0,0)},{k:'y',color:0x35ed83,dir:new THREE.Vector3(0,1,0)},{k:'z',color:0x4595ff,dir:new THREE.Vector3(0,0,1)}];
+ axes.forEach(a=>{
+  const end=a.dir.clone().multiplyScalar(size*2);
+  const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(),end]),new THREE.LineBasicMaterial({color:a.color,depthTest:false,linewidth:3}));
+  line.userData={gizmo:true,axis:a.k,kind:'line'};line.renderOrder=999;gizmoGroup.add(line);
+  const sphereHandle=new THREE.Mesh(new THREE.SphereGeometry(size*.14,12,10),new THREE.MeshBasicMaterial({color:a.color,depthTest:false}));
+  sphereHandle.position.copy(end);sphereHandle.userData={gizmo:true,axis:a.k,kind:'handle'};sphereHandle.renderOrder=1000;gizmoGroup.add(sphereHandle);
+  const arrow=new THREE.Mesh(new THREE.ConeGeometry(size*.13,size*.35,12),new THREE.MeshBasicMaterial({color:a.color,depthTest:false}));
+  arrow.position.copy(end);arrow.position.add(a.dir.clone().multiplyScalar(size*.16));
+  if(a.k==='x')arrow.rotation.z=-Math.PI/2;if(a.k==='z')arrow.rotation.x=Math.PI/2;
+  arrow.userData={gizmo:true,axis:a.k,kind:'handle'};arrow.renderOrder=1000;gizmoGroup.add(arrow);
+ });
+ const center=new THREE.Mesh(new THREE.BoxGeometry(size*.28,size*.28,size*.28),new THREE.MeshBasicMaterial({color:gizmoMode==='scale'?0xffd43b:0xffffff,depthTest:false}));
+ center.userData={gizmo:true,axis:'all',kind:'center'};center.renderOrder=1001;gizmoGroup.add(center);
+ gizmoGroup.position.copy(selected.position);gizmoGroup.traverse(o=>{o.frustumCulled=false});scene.add(gizmoGroup);
+}
+function syncGizmo(){if(gizmoGroup&&selected)gizmoGroup.position.copy(selected.position)}
+function pointFromEvent(e){const r=renderer.domElement.getBoundingClientRect();pointerNdc.set((e.clientX-r.left)/r.width*2-1,-((e.clientY-r.top)/r.height*2-1));raycaster.setFromCamera(pointerNdc,camera);return raycaster}
+renderer.domElement.addEventListener('pointerdown',e=>{
+ if(!selected)return;const ray=pointFromEvent(e);
+ if(gizmoGroup){const hits=ray.intersectObject(gizmoGroup,true).filter(h=>h.object.userData.gizmo);if(hits.length){const h=hits[0].object;gizmoDragging={axis:h.userData.axis,kind:h.userData.kind,startX:e.clientX,startY:e.clientY,startPos:selected.position.clone(),startScale:selected.scale.clone()};controls.enabled=false;renderer.domElement.setPointerCapture(e.pointerId);e.preventDefault();return}}
+ const hits=ray.intersectObjects(scene.children.filter(o=>o.userData.editable),true);
+ if(hits.length){let o=hits[0].object;while(o&&!o.userData.editable)o=o.parent;if(o)pick(o)}
+});
+renderer.domElement.addEventListener('pointermove',e=>{
+ if(!gizmoDragging||!selected)return;
+ const dx=(e.clientX-gizmoDragging.startX)/Math.max(1,view.clientWidth),dy=(e.clientY-gizmoDragging.startY)/Math.max(1,view.clientHeight);
+ const a=gizmoDragging.axis,kind=gizmoDragging.kind;
+ if(gizmoMode==='scale'||kind==='center'){
+  const factor=Math.max(.05,Math.min(30,1+(dx-dy)*3));
+  selected.scale.set(gizmoDragging.startScale.x*factor,gizmoDragging.startScale.y*factor,gizmoDragging.startScale.z*factor);
+  ['sx','sy','sz'].forEach(id=>document.getElementById(id).value=selected.scale[id[1]].toFixed(2));
+ }else{
+  const amount=4;
+  if(a==='x')selected.position.x=gizmoDragging.startPos.x+dx*amount;
+  if(a==='y')selected.position.y=gizmoDragging.startPos.y-dy*amount;
+  if(a==='z')selected.position.z=gizmoDragging.startPos.z+(dx-dy)*amount;
+  document.getElementById(({x:'px',y:'py',z:'pz'})[a]).value=selected.position[a].toFixed(2);
+  [['moveX','x'],['moveY','y'],['moveZ','z']].forEach(([id,ax])=>{document.getElementById(id).value=Math.max(Number(document.getElementById(id).min),Math.min(Number(document.getElementById(id).max),selected.position[ax]));document.getElementById(id+'Val').textContent=selected.position[ax].toFixed(1)});
+ }
+ syncGizmo();updateCenterStatus();
+});
+function endGizmoDrag(e){if(gizmoDragging){gizmoDragging=null;controls.enabled=true;try{renderer.domElement.releasePointerCapture(e.pointerId)}catch(_){} }}
+renderer.domElement.addEventListener('pointerup',endGizmoDrag);renderer.domElement.addEventListener('pointercancel',endGizmoDrag);
+document.getElementById('gizmoMove').onclick=()=>{gizmoMode='move';buildGizmo();msg('Move handles selected')};
+document.getElementById('gizmoScale').onclick=()=>{gizmoMode='scale';buildGizmo();msg('Center handle drag karke resize karo')};
+document.getElementById('showSelected').onclick=()=>{if(!selected)return msg('Pehle Scene Objects mein object select karo');selected.visible=true;selected.traverse(o=>o.visible=true);buildGizmo();msg('Selected object visible')};
+document.getElementById('focusSelected').onclick=()=>document.getElementById('focus').click();
+
 function resize(){renderer.setSize(view.clientWidth,view.clientHeight);camera.aspect=view.clientWidth/view.clientHeight;camera.updateProjectionMatrix()}addEventListener('resize',resize);resize();
 function msg(s){status.textContent=s}
 const originMark=new THREE.Group();
@@ -99,7 +160,7 @@ function updateCenterStatus(){
  document.getElementById('centerReadout').textContent=label+' | X '+p.x.toFixed(2)+' Y '+p.y.toFixed(2)+' Z '+p.z.toFixed(2);
 }
 function refresh(){sel.innerHTML='';scene.children.filter(o=>o.userData.editable).forEach(o=>{let b=document.createElement('button');b.type='button';b.dataset.uuid=o.uuid;b.textContent=o.userData.name||o.name;b.style.width='100%';b.style.textAlign='left';b.style.margin='2px 0';if(selected===o)b.style.borderColor='#9168ee';sel.appendChild(b)})}
-function pick(o){selected=o;if(o){sel.value=o.uuid;document.getElementById('px').value=o.position.x.toFixed(2);document.getElementById('py').value=o.position.y.toFixed(2);document.getElementById('pz').value=o.position.z.toFixed(2);document.getElementById('rx').value=THREE.MathUtils.radToDeg(o.rotation.x).toFixed(0);document.getElementById('ry').value=THREE.MathUtils.radToDeg(o.rotation.y).toFixed(0);document.getElementById('rz').value=THREE.MathUtils.radToDeg(o.rotation.z).toFixed(0);document.getElementById('sx').value=o.scale.x.toFixed(2);document.getElementById('sy').value=o.scale.y.toFixed(2);document.getElementById('sz').value=o.scale.z.toFixed(2);[['moveX',o.position.x],['moveY',o.position.y],['moveZ',o.position.z]].forEach(([id,v])=>{const el=document.getElementById(id);el.value=Math.max(Number(el.min),Math.min(Number(el.max),v));document.getElementById(id+'Val').textContent=Number(v).toFixed(1)});const scale=Math.max(.1,Math.min(5,Math.max(Math.abs(o.scale.x),Math.abs(o.scale.y),Math.abs(o.scale.z))));document.getElementById('moveScale').value=scale;document.getElementById('moveScaleVal').textContent=scale.toFixed(1)+'×';if(o.isObject3D)loadBones(o)}}
+function pick(o){selected=o;if(o){sel.value=o.uuid;document.getElementById('px').value=o.position.x.toFixed(2);document.getElementById('py').value=o.position.y.toFixed(2);document.getElementById('pz').value=o.position.z.toFixed(2);document.getElementById('rx').value=THREE.MathUtils.radToDeg(o.rotation.x).toFixed(0);document.getElementById('ry').value=THREE.MathUtils.radToDeg(o.rotation.y).toFixed(0);document.getElementById('rz').value=THREE.MathUtils.radToDeg(o.rotation.z).toFixed(0);document.getElementById('sx').value=o.scale.x.toFixed(2);document.getElementById('sy').value=o.scale.y.toFixed(2);document.getElementById('sz').value=o.scale.z.toFixed(2);[['moveX',o.position.x],['moveY',o.position.y],['moveZ',o.position.z]].forEach(([id,v])=>{const el=document.getElementById(id);el.value=Math.max(Number(el.min),Math.min(Number(el.max),v));document.getElementById(id+'Val').textContent=Number(v).toFixed(1)});const scale=Math.max(.1,Math.min(5,Math.max(Math.abs(o.scale.x),Math.abs(o.scale.y),Math.abs(o.scale.z))));document.getElementById('moveScale').value=scale;document.getElementById('moveScaleVal').textContent=scale.toFixed(1)+'×';if(o.isObject3D)loadBones(o);buildGizmo();msg('Selected: '+(o.userData.name||o.name||'object'))}}
 function loadBones(o){bones.innerHTML='';let found=[];o.traverse(x=>{if(x.isBone&&/hand|wrist|palm/i.test(x.name))found.push(x)});if(!found.length)o.traverse(x=>{if(x.isBone)found.push(x)});found.slice(0,80).forEach(b=>{let op=document.createElement('option');op.textContent=b.name;op.value=b.uuid;bones.appendChild(op)});if(!found.length){let op=document.createElement('option');op.textContent='No bones found';bones.appendChild(op)}}
 sel.onclick=e=>{const b=e.target.closest('button[data-uuid]');if(b)pick(scene.getObjectByProperty('uuid',b.dataset.uuid));};
 ['px','py','pz','rx','ry','rz','sx','sy','sz'].forEach(id=>document.getElementById(id).oninput=()=>{if(!selected)return;let v=parseFloat(document.getElementById(id).value)||0;if(id[0]=='p')selected.position[id[1]]=v;else if(id[0]=='r')selected.rotation[id[1]]=THREE.MathUtils.degToRad(v);else selected.scale[id[1]]=v;updateCenterStatus()});
@@ -149,7 +210,7 @@ async function importZip(zipFile,isCharacter=false){
     const o=g.scene||g.scenes&&g.scenes[0];if(!o)throw new Error('GLTF में scene नहीं मिला');
     o.userData={...o.userData,editable:true,name:fileName,type:isCharacter?'character':'object'};
     const box=new THREE.Box3().setFromObject(o);if(!box.isEmpty()){const center=box.getCenter(new THREE.Vector3());o.position.sub(center);o.userData.modelSize=box.getSize(new THREE.Vector3()).toArray()}
-    scene.add(o);if(isCharacter)character=o;pick(o);refresh();updateCenterStatus();msg((isCharacter?'Character ':'Object ')+'loaded with ZIP resources: '+fileName);
+    if(isCharacter){o.position.x+=2.5;character=o;}scene.add(o);pick(o);refresh();updateCenterStatus();document.getElementById('focus').click();msg((isCharacter?'Character ':'Object ')+'loaded with ZIP resources: '+fileName);
     objectUrls.forEach(URL.revokeObjectURL);
    },undefined,err=>{console.error('GLTF ZIP load',err);msg('Model/texture load failed. ZIP में .gltf के साथ .bin और texture files भी होने चाहिए.');objectUrls.forEach(URL.revokeObjectURL)});
   }else{
@@ -260,5 +321,5 @@ let recorder,chunks=[];document.getElementById('rec').onclick=()=>{if(recorder&&
 async function searchAssets(){const q=document.getElementById('assetSearch').value.trim();const box=document.getElementById('assetResults');if(!q){box.innerHTML='<small>पहले object का नाम लिखो.</small>';return}box.innerHTML='<small>Searching '+q+'…</small>';try{const res=await fetch('https://api.sketchfab.com/v3/search?type=models&q='+encodeURIComponent(q)+'&count=12');if(!res.ok)throw new Error('search');const d=await res.json();box.innerHTML='';(d.results||[]).forEach(x=>{const b=document.createElement('button');b.textContent='➕ '+(x.name||'3D Model');b.onclick=()=>{const u=x.viewerUrl||('https://sketchfab.com/3d-models/'+x.uid);msg('Model page opened — use Download if the model is downloadable, then upload the GLB/GLTF here.');window.open(u,'_blank')};box.appendChild(b)});if(!d.results?.length)box.innerHTML='<small>No model found.</small>'}catch(e){box.innerHTML='<small>Online search अभी उपलब्ध नहीं है. Internet connection/API access check करो.</small>'}}document.getElementById('assetSearchBtn').onclick=searchAssets;document.getElementById('assetSearch').addEventListener('keydown',e=>{if(e.key==='Enter')searchAssets()});
 const libraryData={Car:()=>{let g=new THREE.Group();let b=new THREE.Mesh(new THREE.BoxGeometry(2.8,.7,1.4),new THREE.MeshStandardMaterial({color:0x3b82f6}));b.position.y=.7;g.add(b);let roof=new THREE.Mesh(new THREE.BoxGeometry(1.5,.5,1.2),new THREE.MeshStandardMaterial({color:0x1e293b}));roof.position.set(-.1,1.3,0);g.add(roof);for(let x of [-.9,.9])for(let z of [-.75,.75]){let w=new THREE.Mesh(new THREE.CylinderGeometry(.32,.32,.18,24),new THREE.MeshStandardMaterial({color:0x111827}));w.rotation.x=Math.PI/2;w.position.set(x,.35,z);g.add(w)}return g},House:()=>{let g=new THREE.Group();let b=new THREE.Mesh(new THREE.BoxGeometry(2.5,2,2.2),new THREE.MeshStandardMaterial({color:0xd1d5db}));b.position.y=1;g.add(b);let r=new THREE.Mesh(new THREE.ConeGeometry(1.8,.9,4),new THREE.MeshStandardMaterial({color:0x92400e}));r.rotation.y=Math.PI/4;r.position.y=2.45;g.add(r);return g},Phone:()=>new THREE.Mesh(new THREE.BoxGeometry(.7,1.4,.12),new THREE.MeshStandardMaterial({color:0x111827,metalness:.2})),Chair:()=>{let g=new THREE.Group();let m=new THREE.MeshStandardMaterial({color:0x92400e});let s=new THREE.Mesh(new THREE.BoxGeometry(1.4,.2,1.3),m);s.position.y=1.3;g.add(s);let back=new THREE.Mesh(new THREE.BoxGeometry(1.4,1.6,.2),m);back.position.set(0,2,.55);g.add(back);for(let x of [-.5,.5])for(let z of [-.45,.45]){let l=new THREE.Mesh(new THREE.BoxGeometry(.15,1.3,.15),m);l.position.set(x,.65,z);g.add(l)}return g}};for(const n of Object.keys(libraryData)){let b=document.createElement('button');b.textContent=n;b.onclick=()=>{let o=libraryData[n]();o.userData={editable:true,name:n,type:'prop'};scene.add(o);pick(o);refresh();msg(n+' added')};document.getElementById('libraryBtns').appendChild(b)}
 document.getElementById('library').onclick=()=>document.getElementById('panel').classList.toggle('open');
-function loop(){requestAnimationFrame(loop);if(weatherPoints){const a=weatherPoints.geometry.attributes.position;for(let i=0;i<a.count;i++){let y=a.getY(i);y-=weatherKind==='rain'?.24:.045;if(y<0)y=12;a.setY(i,y);if(weatherKind==='snow'){a.setX(i,a.getX(i)+Math.sin(Date.now()/700+i)*.003)}}a.needsUpdate=true}controls.update();renderer.render(scene,camera)}loop();
+function loop(){requestAnimationFrame(loop);syncGizmo();if(weatherPoints){const a=weatherPoints.geometry.attributes.position;for(let i=0;i<a.count;i++){let y=a.getY(i);y-=weatherKind==='rain'?.24:.045;if(y<0)y=12;a.setY(i,y);if(weatherKind==='snow'){a.setX(i,a.getX(i)+Math.sin(Date.now()/700+i)*.003)}}a.needsUpdate=true}controls.update();renderer.render(scene,camera)}loop();
 </script></body></html>
