@@ -230,43 +230,19 @@ function importModel(f,isCharacter=false){
  const done=o=>{
    if(!o){msg('Model empty hai ya load nahi hua.');return}
    o.userData={...o.userData,editable:true,name:f.name,type:isCharacter?'character':'object'};
-   // Normalize imported models to a predictable size, centre them, and place their feet on the ground.
-   // This prevents unusually large GLB/FBX/OBJ files from filling the whole scene.
+   // Keep the model's original scale. Re-centre only its pivot so existing model sizing stays familiar.
    const box=new THREE.Box3().setFromObject(o);
    if(!box.isEmpty()){
-     const originalSize=box.getSize(new THREE.Vector3());
-     const maxDim=Math.max(originalSize.x,originalSize.y,originalSize.z);
-     if(Number.isFinite(maxDim)&&maxDim>0){
-       const targetSize=isCharacter?2.4:4.0;
-       const factor=Math.min(20,Math.max(.001,targetSize/maxDim));
-       o.scale.multiplyScalar(factor);
-     }
-     o.updateMatrixWorld(true);
-     const normalizedBox=new THREE.Box3().setFromObject(o);
-     if(!normalizedBox.isEmpty()){
-       const center=normalizedBox.getCenter(new THREE.Vector3());
-       o.position.x-=center.x;
-       o.position.y-=normalizedBox.min.y;
-       o.position.z-=center.z;
-       o.userData.modelSize=normalizedBox.getSize(new THREE.Vector3()).toArray();
-     }
+     const center=box.getCenter(new THREE.Vector3());
+     o.position.sub(center);
+     o.userData.modelSize=box.getSize(new THREE.Vector3()).toArray();
    }
-   scene.add(o);
-   if(isCharacter)character=o;
-   pick(o);refresh();updateCenterStatus();
-   // Frame the imported model in the camera so it is immediately visible.
-   const fitBox=new THREE.Box3().setFromObject(o);
-   if(!fitBox.isEmpty()){
-     const fitSphere=fitBox.getBoundingSphere(new THREE.Sphere());
-     const radius=Math.max(.5,fitSphere.radius);
-     controls.target.copy(fitSphere.center);
-     camera.position.copy(fitSphere.center).add(new THREE.Vector3(radius*1.8,radius*1.2,radius*2.4));
-     camera.near=Math.max(.01,radius/100);
-     camera.far=Math.max(500,radius*100);
-     camera.updateProjectionMatrix();
-     controls.update();
-     buildGizmo();
-   }
+   scene.add(o);if(isCharacter)character=o;pick(o);refresh();updateCenterStatus();
+   // Use a neutral studio background instead of an unexpected bright blue sky.
+   scene.background=new THREE.Color(0x202633);
+   scene.fog=null;
+   controls.target.set(0,0,0);
+   controls.update();
    msg((isCharacter?'Character ':'Object ')+'loaded: '+f.name);
    URL.revokeObjectURL(url);
  };
